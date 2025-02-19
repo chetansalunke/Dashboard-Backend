@@ -1,15 +1,14 @@
-// db.js
-import pool from "mysql2";
+import mysql from "mysql2";
+import dotenv from "dotenv";
+dotenv.config();
 
-// Create a connection pool
 const pool = mysql.createPool({
-  host: "localhost",
-  user: "root",
-  password: "password",
-  database: "geeksforgeeks",
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
   waitForConnections: true,
-  connectionLimit: 10,
+  connectionLimit: 10, // Adjust based on load
   queueLimit: 0,
 });
-
-module.exports = pool;
+export default pool.promise(); // Using promise-based pool
