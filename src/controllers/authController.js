@@ -6,6 +6,7 @@ import {
 } from "../utils/genrateTokens.js";
 import dotenv from "dotenv";
 dotenv.config();
+
 export const register = async (req, res) => {
   const { username, email, password, role } = req.body;
 
@@ -27,8 +28,6 @@ export const register = async (req, res) => {
 
 export const login = async (req, res) => {
   const { email, password } = req.body;
-
-  // 🔍 Input validation
   if (!email || !password) {
     return res
       .status(400)
@@ -36,7 +35,6 @@ export const login = async (req, res) => {
   }
 
   try {
-    // 🛢️ Fetch user without password match (security best practice)
     const [users] = await pool.query(
       "SELECT * FROM users WHERE email = ? and password= ?",
       [email, password]
@@ -49,19 +47,14 @@ export const login = async (req, res) => {
 
     const user = users[0];
 
-    // 🔒 Compare hashed password
-
-    // 🎫 Generate tokens
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
 
-    // 🗄️ Store refresh token in DB
     await pool.query(
       "INSERT INTO refresh_tokens (user_id, token) VALUES (?, ?)",
       [user.id, refreshToken]
     );
 
-    // 🍪 Set HttpOnly cookie for refresh token
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production", // Set true in production
@@ -69,7 +62,6 @@ export const login = async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
-    // 🎉 Successful login response
     res.status(200).json({
       accessToken,
       user: { id: user.id, username: user.username, role: user.role },
@@ -107,12 +99,11 @@ export const refreshToken = async (req, res) => {
     res.status(403).json({ message: "Invalid or expired refresh token." });
   }
 };
+
 export const logout = async (req, res) => {
   const refreshToken = req.cookies.refreshToken;
-  if (!refreshToken) return res.sendStatus(204); // No content
-
+  if (!refreshToken) return res.sendStatus(204);
   try {
-    // 🗑️ Remove token from DB
     await pool.query("DELETE FROM refresh_tokens WHERE token = ?", [
       refreshToken,
     ]);

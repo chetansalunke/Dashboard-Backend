@@ -18,16 +18,16 @@ const protect = (roles = []) => {
 
       console.log("Decoded Token:", decoded);
 
-      // Match DB field with token payload (id/userId as per your token)
       const [users] = await pool.query("SELECT * FROM users WHERE id = ?", [
-        decoded.id, // Change this if your payload uses a different key
+        decoded.id,
       ]);
 
       if (users.length === 0) {
-        return res.status(401).json({ message: "User no longer exists." });
+        return res
+          .status(401)
+          .json({ message: "User no longer exists in database." });
       }
 
-      // ⚡ Role-based access validation
       if (roles.length && !roles.includes(decoded.role)) {
         return res
           .status(403)
@@ -39,7 +39,7 @@ const protect = (roles = []) => {
     } catch (err) {
       console.error("Auth error:", err);
       if (err.name === "TokenExpiredError") {
-        return res.status(401).json({ message: "⚠️ Access token expired." });
+        return res.status(401).json({ message: "Access token expired." });
       }
       res.status(401).json({ message: "Invalid token." });
     }
