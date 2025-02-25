@@ -3,6 +3,7 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import authRoutes from "./routes/authRoutes.js";
 import dotenv from "dotenv";
+import projects from "./routes/projects.js";
 dotenv.config();
 
 const PORT = 3000;
@@ -18,6 +19,12 @@ app.use(express.json());
 app.use(cookieParser());
 
 app.use("/api/auth", authRoutes);
+app.use("/uploads", express.static("uploads"));
+app.use("/api/projects", projects);
+
+app.use((req, res) => {
+  res.status(404).json({ message: "Route not found" });
+});
 
 app.listen(PORT, (error) => {
   if (error) {
