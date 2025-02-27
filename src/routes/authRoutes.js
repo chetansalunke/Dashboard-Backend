@@ -20,5 +20,5 @@ router.post("/logout", logout);
 router.get("/profile", protect, (req, res) => {
   res.status(200).json({ message: "Profile accessed", user: req.user });
 });
-
+router.get("/all", getAllUsers);
 export default router;

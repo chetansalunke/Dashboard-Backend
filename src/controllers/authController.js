@@ -25,6 +25,23 @@ export const register = async (req, res) => {
     res.status(500).json({ error: "Database error during registration." });
   }
 };
+// Get all users
+export const getAllUsers = async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT id, username, email, role FROM users`
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "No users found" });
+    }
+
+    res.status(200).json({ users: rows });
+  } catch (error) {
+    console.error("Error fetching users:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+};
 
 export const login = async (req, res) => {
   const { email, password } = req.body;
