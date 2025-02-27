@@ -8,12 +8,12 @@ export const generateAccessToken = (user) => {
   return jwt.sign(
     { id: user.id, role: user.role },
     process.env.ACCESS_TOKEN_SECRET,
-    { expiresIn: "5m" }
+    { expiresIn: "20min" }
   );
 };
 
 export const generateRefreshToken = (user) => {
-  return jwt.sign({ id: user.id }, process.env.REFRESS_TOKEN_SECRETE, {
+  return jwt.sign({ id: user.id }, process.env.REFRESS_TOKEN_SECRET, {
     expiresIn: "7d",
   });
 };

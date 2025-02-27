@@ -83,7 +83,7 @@ export const refreshToken = async (req, res) => {
   }
 
   try {
-    const user = jwt.verify(refreshToken, process.env.REFRESS_TOKEN_SECRETE);
+    const user = jwt.verify(refreshToken, process.env.REFRESS_TOKEN_SECRET);
 
     const [tokens] = await pool.query(
       "Select * from refresh_tokens where user_id = ? and token = ? ",
