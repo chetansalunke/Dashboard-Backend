@@ -13,7 +13,6 @@ export const createProject = async (req, res) => {
       userId,
     } = req.body;
 
-    // ✅ Handle multiple files: map file paths into an array and join into a string
     const documentPaths = req.files
       ? req.files.map((file) => file.path).join(",")
       : null;
@@ -82,6 +81,36 @@ export const getProjectDocuments = async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching project documents:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+// Get all projects
+export const getAllProjects = async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT id, projectName, description, duration, projectSize, document_upload, assignTo, status, pendingForm, submissionDate, userId FROM projects`
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "No projects found" });
+    }
+
+    const baseUrl = `${req.protocol}://${req.get("host")}/`;
+
+    // Map through projects to format document paths properly
+    const projects = rows.map((project) => ({
+      ...project,
+      documents: project.document_upload
+        ? project.document_upload
+            .split(",")
+            .map((doc) => `${baseUrl}${doc.trim()}`)
+        : [],
+    }));
+
+    res.status(200).json({ projects });
+  } catch (error) {
+    console.error("Error fetching projects:", error);
     res.status(500).json({ error: "Server error" });
   }
 };
