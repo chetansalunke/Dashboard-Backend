@@ -5,9 +5,9 @@ import {
   login,
   refreshToken,
   logout,
+  getAllUsers,
 } from "../controllers/authController.js";
 import protect from "../middlewares/authMiddleware.js";
-
 const router = express.Router();
 
 // Public routes

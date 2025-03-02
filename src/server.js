@@ -24,6 +24,10 @@ app.use("/api/auth", authRoutes);
 app.use("/uploads", express.static("uploads"));
 app.use("/api/projects", projects);
 
+app.get("/", (req, res) => {
+  res.json({ message: "Wellcome Api" });
+});
+
 app.use((req, res) => {
   res.status(404).json({ message: "Route not found" });
 });
