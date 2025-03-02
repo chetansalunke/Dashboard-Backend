@@ -11,10 +11,10 @@ const app = express();
 
 app.use(
   cors({
-    origin: "http://localhost:5173", // Allow requests from your frontend
-    credentials: true, // Allow sending cookies and headers
-    methods: "GET,HEAD,PUT,PATCH,POST,DELETE", // Allowed methods
-    allowedHeaders: "Content-Type,Authorization", // Allowed headers
+    origin: "*", // Allow all origins (Not recommended for production)
+    credentials: true,
+    methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+    allowedHeaders: "Content-Type,Authorization",
   })
 );
 app.use(express.json());
