@@ -34,7 +34,7 @@ export const createProject = async (req, res) => {
         description || null,
         duration || null,
         projectSize || null,
-        documentPaths, // ✅ Store comma-separated file paths
+        documentPaths,
         assignTo || null,
         status,
         pendingForm || null,

@@ -19,7 +19,7 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage });
-
+  
 router.post("/add", protect(), upload.array("documents", 10), createProject);
 router.get("/:projectId/documents", protect(), getProjectDocuments);
 router.get("/all", getAllProjects);

@@ -43,6 +43,8 @@ export const getAllUsers = async (req, res) => {
   }
 };
 
+
+
 export const login = async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
