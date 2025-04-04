@@ -17,14 +17,11 @@ export const createProject = async (req, res) => {
       ? req.files.map((file) => file.path).join(",")
       : null;
 
-    const submissionDate = new Date(); // Use current date as submission date
-    const status = "Pending"; // Default status
-
+    const submissionDate = new Date();
+    const status = "Pending";
     if (!userId || isNaN(parseInt(userId))) {
       return res.status(400).json({ error: "Valid User ID is required" });
     }
-
-    // Insert into projects table
     const [result] = await pool.query(
       `INSERT INTO projects
         (projectName, description, duration, projectSize, document_upload, assignTo, status, pendingForm, submissionDate, userId)
@@ -39,7 +36,7 @@ export const createProject = async (req, res) => {
         status,
         pendingForm || null,
         submissionDate,
-        parseInt(userId), // Ensure userId is an integer
+        parseInt(userId),
       ]
     );
 
