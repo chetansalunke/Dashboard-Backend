@@ -40,6 +40,7 @@ app.use(cookieParser());
 
 app.use("/api/auth", authRoutes);
 app.use("/uploads", express.static("uploads"));
+app.use("/rfi", express.static("rfi"));
 app.use("/api/projects", projects);
 app.use("/api", rfiRoutes);
 
