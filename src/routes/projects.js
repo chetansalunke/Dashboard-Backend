@@ -1,7 +1,12 @@
 // src/routes/projects.js
 import express from "express";
 import multer from "multer";
-import { createProject } from "../controllers/projectsController.js";
+import {
+  createProject,
+  createDrawingList,
+  assignTask,
+  createTeam,
+} from "../controllers/projectsController.js";
 import {
   getProjectDocuments,
   getAllProjects,
@@ -19,8 +24,16 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage });
-  
+
 router.post("/add", protect(), upload.array("documents", 10), createProject);
+router.post("/drawingList/add", protect(), createDrawingList);
+router.post(
+  "/assignTask",
+  protect(),
+  upload.array("documents", 10),
+  assignTask
+);
+router.post("/createTeam", protect(), createTeam);
 router.get("/:projectId/documents", protect(), getProjectDocuments);
 router.get("/all", getAllProjects);
 
