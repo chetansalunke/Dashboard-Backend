@@ -55,7 +55,7 @@ export const getUserByRole = async (req, res) => {
 
   try {
     const [rows] = await pool.query(
-      `SELECT id, username, email, role, status FROM users WHERE role = ?`,
+      `SELECT id, username, email, role,phone_number ,status FROM users WHERE role = ?`,
       [role]
     );
 
