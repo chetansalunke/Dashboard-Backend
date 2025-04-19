@@ -207,9 +207,7 @@ export const getProjectDocuments = async (req, res) => {
 // Get all projects
 export const getAllProjects = async (req, res) => {
   try {
-    const [rows] = await pool.query(
-      `SELECT id, projectName, description, duration, projectSize, document_upload, assignTo, status, pendingForm, submissionDate, userId FROM projects`
-    );
+    const [rows] = await pool.query(`SELECT * FROM projects`);
 
     if (rows.length === 0) {
       return res.status(404).json({ error: "No projects found" });
