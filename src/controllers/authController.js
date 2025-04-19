@@ -8,16 +8,18 @@ import dotenv from "dotenv";
 dotenv.config();
 
 export const register = async (req, res) => {
-  const { username, email, password, role } = req.body;
+  const { username, email, password, role, phone_number, status } = req.body;
 
-  if (!username || !email || !password || !role) {
+  console.log("Incoming data:", req.body);
+
+  if (!username || !email || !password || !role || !phone_number || !status) {
     return res.status(400).json({ error: "All fields are required." });
   }
 
   try {
     const [result] = await pool.query(
-      "INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, ?)",
-      [username, email, password, role]
+      "INSERT INTO users (username, email, password, role, phone_number, status) VALUES (?, ?, ?, ?, ?, ?)",
+      [username, email, password, role, phone_number, status]
     );
     res.status(201).json({ message: "User registered successfully" });
   } catch (err) {
@@ -25,6 +27,7 @@ export const register = async (req, res) => {
     res.status(500).json({ error: "Database error during registration." });
   }
 };
+
 // Get all users
 export const getAllUsers = async (req, res) => {
   try {
@@ -35,10 +38,36 @@ export const getAllUsers = async (req, res) => {
     if (rows.length === 0) {
       return res.status(404).json({ error: "No users found" });
     }
-
     res.status(200).json({ users: rows });
   } catch (error) {
     console.error("Error fetching users:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+export const getUserByRole = async (req, res) => {
+  const { role } = req.query;
+
+  if (!role) {
+    return res
+      .status(400)
+      .json({ error: "Role is required as a query parameter" });
+  }
+
+  try {
+    const [rows] = await pool.query(
+      `SELECT id, username, email, role, status FROM users WHERE role = ?`,
+      [role]
+    );
+
+    if (rows.length === 0) {
+      return res
+        .status(404)
+        .json({ error: `No users found with role '${role}'` });
+    }
+
+    res.status(200).json({ users: rows });
+  } catch (error) {
+    console.error("Error fetching users by role:", error);
     res.status(500).json({ error: "Server error" });
   }
 };
