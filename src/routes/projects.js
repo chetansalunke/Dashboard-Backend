@@ -1,11 +1,14 @@
 // src/routes/projects.js
 import express from "express";
 import multer from "multer";
+import { ROLE } from ".././constants/role.js";
 import {
   createProject,
   createDrawingList,
   assignTask,
   createTeam,
+  getAllTaskByProjectId,
+  getTeamDetailsByProjectId,
 } from "../controllers/projectsController.js";
 import {
   getProjectDocuments,
@@ -35,6 +38,19 @@ router.post(
 );
 router.post("/createTeam", protect(), createTeam);
 router.get("/:projectId/documents", protect(), getProjectDocuments);
+// show all project to the admin only
+router.get("/alll", protect([ROLE.ADMIN]), getAllProjects);
 router.get("/all", getAllProjects);
-
+// get assigntask by project id
+router.get(
+  "/:projectId/tasks",
+  protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER),
+  getAllTaskByProjectId
+);
+// get team details by project id
+router.get(
+  "/:projectId/teams",
+  protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER),
+  getTeamDetailsByProjectId
+);
 export default router;

@@ -15,8 +15,6 @@ const protect = (roles = []) => {
       const token = authHeader.split(" ")[1];
       const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
 
-      console.log("Decoded Token id : ", decoded.id);
-
       const [users] = await pool.query("SELECT * FROM users WHERE id = ?", [
         decoded.id,
       ]);
@@ -26,14 +24,16 @@ const protect = (roles = []) => {
           .status(401)
           .json({ message: "User no longer exists in database." });
       }
-
-      if (roles.length && !roles.includes(decoded.role)) {
+      console.log("Role ");
+      console.log(users[0].role);
+      if (roles.length && !roles.includes(users[0].role)) {
         return res
           .status(403)
           .json({ message: "Forbidden: insufficient privileges." });
       }
 
       req.user = users[0];
+      console.log(users[0]);
       next();
     } catch (err) {
       console.error("Auth error:", err);

@@ -231,3 +231,63 @@ export const getAllProjects = async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 };
+
+// get all assign task by project id
+export const getAllTaskByProjectId = async (req, res) => {
+  const { projectId } = req.params;
+  console.log(projectId);
+
+  try {
+    const [rows] = await pool.query(
+      `SELECT 
+	users.username,assign_task.checklist, assign_task.assign_task_document,
+  assign_task.task_name, 
+  assign_task.priority, 
+  projects.projectName 
+FROM 
+  assign_task 
+JOIN 
+  projects 
+ON 
+  assign_task.project_id = projects.id 
+  join users on assign_task.assign_to = users.id
+WHERE 
+  assign_task.project_id = ?`,
+      [projectId]
+    );
+
+    if (rows.length === 0) {
+      return res
+        .status(404)
+        .json({ error: "No tasks found for this project." });
+    }
+
+    console.log("Fetched Tasks:", rows);
+    return res.status(200).json(rows);
+  } catch (error) {
+    console.error("Error in getAllTaskByProjectId:", error);
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+export const getTeamDetailsByProjectId = async (req, res) => {
+  const { projectId } = req.params;
+
+  try {
+    const [rows] = await pool.query(
+      `select users.username,users.email,users.phone_number,users.status,projects.projectName from teams join projects on teams.project_id = projects.id join users on teams.user_id=users.id where teams.project_id = ?
+`,
+      [projectId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "Team Details not found" });
+    }
+
+    console.log("Team Details:", rows);
+    return res.status(200).json(rows);
+  } catch (error) {
+    console.error("Error fetching Team Details:", error);
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+};

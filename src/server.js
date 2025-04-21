@@ -5,6 +5,8 @@ import authRoutes from "./routes/authRoutes.js";
 import dotenv from "dotenv";
 import projects from "./routes/projects.js";
 import rfiRoutes from "./routes/rfiRoutes.js";
+import userRoutes from "./routes/user.routes.js";
+
 dotenv.config();
 
 const PORT = 3000;
@@ -43,7 +45,7 @@ app.use("/uploads", express.static("uploads"));
 app.use("/rfi", express.static("rfi"));
 app.use("/api/projects", projects);
 app.use("/api", rfiRoutes);
-
+app.use("/api/users", userRoutes);
 app.get("/", (req, res) => {
   res.json({ message: "Wellcome Api" });
 });
