@@ -32,9 +32,12 @@ export const register = async (req, res) => {
 export const getAllUsers = async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT id, username, email, role FROM users`
+      `
+      SELECT id, username, email, role, status 
+      FROM users 
+      WHERE status IN ("internal_stakeholder", "external_stakeholder")
+      `
     );
-
     if (rows.length === 0) {
       return res.status(404).json({ error: "No users found" });
     }

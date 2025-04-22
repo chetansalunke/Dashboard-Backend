@@ -168,6 +168,12 @@ export const createTeam = async (req, res) => {
       teamId: result.insertId,
     });
   } catch (error) {
+    // Check for duplicate entry error
+    if (error.code === "ER_DUP_ENTRY") {
+      return res.status(409).json({
+        error: "This user is already added to the project team.",
+      });
+    }
     console.error("Error creating team:", error);
     res.status(500).json({ error: "Database error" });
   }
@@ -232,6 +238,67 @@ export const getAllProjects = async (req, res) => {
   }
 };
 
+export const getProjectById = async (req, res) => {
+  const { projectId } = req.params;
+
+  try {
+    const [rows] = await pool.query(`SELECT * FROM projects WHERE id = ?`, [
+      projectId,
+    ]);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "Project not found" });
+    }
+
+    const project = rows[0];
+    const baseUrl = `${req.protocol}://${req.get("host")}/`;
+
+    const formattedProject = {
+      ...project,
+      documents: project.document_upload
+        ? project.document_upload
+            .split(",")
+            .map((doc) => `${baseUrl}${doc.trim()}`)
+        : [],
+    };
+
+    res.status(200).json({ project: formattedProject });
+  } catch (error) {
+    console.error("Error fetching project by ID:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+export const getDrawingsByProjectId = async (req, res) => {
+  const { projectId } = req.params;
+
+  try {
+    const [rows] = await pool.query(
+      `SELECT * FROM drawing_list WHERE project_id = ?`,
+      [projectId]
+    );
+
+    if (rows.length === 0) {
+      return res
+        .status(404)
+        .json({ error: "No drawings found for this project" });
+    }
+
+    const baseUrl = `${req.protocol}://${req.get("host")}/`;
+
+    const drawings = rows.map((drawing) => ({
+      ...drawing,
+      file_url: drawing.file_path
+        ? `${baseUrl}${drawing.file_path.trim()}`
+        : null,
+    }));
+
+    res.status(200).json({ drawings });
+  } catch (error) {
+    console.error("Error fetching drawings:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
 // get all assign task by project id
 export const getAllTaskByProjectId = async (req, res) => {
   const { projectId } = req.params;
@@ -270,12 +337,34 @@ WHERE
   }
 };
 
+export const getAssignedTaskByProject = async (req, res) => {
+  const { projectId, taskId } = req.params;
+
+  try {
+    const [rows] = await pool.query(
+      `SELECT * FROM assign_task WHERE project_id = ?`,
+      [projectId]
+    );
+
+    if (rows.length === 0) {
+      return res
+        .status(404)
+        .json({ error: "Assigned task not found for this project." });
+    }
+
+    return res.status(200).json({ task: rows[0] });
+  } catch (error) {
+    console.error("Error in getAssignedTaskByProject:", error);
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
 export const getTeamDetailsByProjectId = async (req, res) => {
   const { projectId } = req.params;
 
   try {
     const [rows] = await pool.query(
-      `select users.username,users.email,users.phone_number,users.status,projects.projectName from teams join projects on teams.project_id = projects.id join users on teams.user_id=users.id where teams.project_id = ?
+      `select users.username,users.role,users.email,users.phone_number,users.status,projects.projectName from teams join projects on teams.project_id = projects.id join users on teams.user_id=users.id where teams.project_id = ?
 `,
       [projectId]
     );

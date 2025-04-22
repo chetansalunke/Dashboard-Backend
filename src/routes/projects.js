@@ -9,6 +9,9 @@ import {
   createTeam,
   getAllTaskByProjectId,
   getTeamDetailsByProjectId,
+  getProjectById,
+  getDrawingsByProjectId,
+  getAssignedTaskByProject,
 } from "../controllers/projectsController.js";
 import {
   getProjectDocuments,
@@ -41,6 +44,19 @@ router.get("/:projectId/documents", protect(), getProjectDocuments);
 // show all project to the admin only
 router.get("/alll", protect([ROLE.ADMIN]), getAllProjects);
 router.get("/all", getAllProjects);
+// get project details by projectid
+router.get("/:projectId", protect([ROLE.ADMIN], [ROLE.EXPERT]), getProjectById);
+router.get(
+  "/assignTask/:projectId",
+  protect([ROLE.ADMIN], [ROLE.EXPERT]),
+  getAssignedTaskByProject
+);
+// get drawing list by projectId
+router.get(
+  "/drawingList/:projectId",
+  protect([ROLE.ADMIN], [ROLE.EXPERT]),
+  getDrawingsByProjectId
+);
 // get assigntask by project id
 router.get(
   "/:projectId/tasks",
