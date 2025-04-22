@@ -338,7 +338,7 @@ WHERE
 };
 
 export const getAssignedTaskByProject = async (req, res) => {
-  const { projectId, taskId } = req.params;
+  const { projectId } = req.params;
 
   try {
     const [rows] = await pool.query(
@@ -349,10 +349,10 @@ export const getAssignedTaskByProject = async (req, res) => {
     if (rows.length === 0) {
       return res
         .status(404)
-        .json({ error: "Assigned task not found for this project." });
+        .json({ error: "No assigned tasks found for this project." });
     }
 
-    return res.status(200).json({ task: rows[0] });
+    return res.status(200).json({ tasks: rows });
   } catch (error) {
     console.error("Error in getAssignedTaskByProject:", error);
     return res.status(500).json({ error: "Internal Server Error" });

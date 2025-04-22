@@ -47,7 +47,7 @@ router.get("/all", getAllProjects);
 // get project details by projectid
 router.get("/:projectId", protect([ROLE.ADMIN], [ROLE.EXPERT]), getProjectById);
 router.get(
-  "/assignTask/:projectId",
+  "/:projectId/assignTask",
   protect([ROLE.ADMIN], [ROLE.EXPERT]),
   getAssignedTaskByProject
 );
