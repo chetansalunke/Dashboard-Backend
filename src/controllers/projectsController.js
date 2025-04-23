@@ -380,3 +380,65 @@ export const getTeamDetailsByProjectId = async (req, res) => {
     return res.status(500).json({ error: "Internal Server Error" });
   }
 };
+
+export const createDesignDrawing = async (req, res) => {
+  const {
+    project_id,
+    name,
+    remark,
+    discipline,
+    document_path,
+    previous_versions,
+    latest_version_path,
+    status,
+    sent_by,
+  } = req.body;
+
+  try {
+    const [result] = await db.execute(
+      `INSERT INTO design_drawing_list (
+        project_id, name, remark, discipline, document_path,
+        previous_versions, latest_version_path, status, sent_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        project_id,
+        name,
+        remark,
+        discipline,
+        document_path,
+        JSON.stringify(previous_versions || []),
+        latest_version_path,
+        status,
+        sent_by,
+      ]
+    );
+
+    res.status(201).json({
+      message: "Design drawing created successfully",
+      insertId: result.insertId,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Error inserting design drawing", error });
+  }
+};
+
+// GET all design drawings
+export const getAllDesignDrawings = async (req, res) => {
+  const { project_id } = req.query;
+
+  if (!project_id) {
+    return res.status(400).json({ message: "project_id is required" });
+  }
+
+  try {
+    const [rows] = await db.execute(
+      "SELECT * FROM design_drawing_list WHERE project_id = ? ORDER BY created_date DESC",
+      [project_id]
+    );
+    res.status(200).json(rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Error fetching design drawings", error });
+  }
+};
