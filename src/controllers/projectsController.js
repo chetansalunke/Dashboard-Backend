@@ -358,6 +358,33 @@ export const getAssignedTaskByProject = async (req, res) => {
     return res.status(500).json({ error: "Internal Server Error" });
   }
 };
+// getAssignTaskByUserID
+export const getAssignedTaskByUser = async (req, res) => {
+  const { userId } = req.params;
+
+  if (!userId) {
+    return res.status(400).json({ error: "userId is required" });
+  }
+
+  try {
+    const [rows] = await pool.query(
+      `SELECT * FROM assign_task WHERE assign_to = ?`,
+      [userId]
+    );
+
+    if (rows.length === 0) {
+      return res
+        .status(404)
+        .json({ error: "No assigned tasks found for this user." });
+    }
+
+    return res.status(200).json({ tasks: rows });
+  } catch (error) {
+    console.error("Error in getAssignedTaskByUser:", error);
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
 
 export const getTeamDetailsByProjectId = async (req, res) => {
   const { projectId } = req.params;
@@ -476,7 +503,8 @@ export const getAllDesignDrawings = async (req, res) => {
     res.status(500).json({ message: "Error fetching design drawings", error });
   }
 };
-// getAssignTaskByuerID
+
+// getAssignedProjects
 export const getAssignedProjects = async (req, res) => {
   const { userId } = req.params;
 
