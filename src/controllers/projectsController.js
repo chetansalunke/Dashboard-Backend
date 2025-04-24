@@ -555,3 +555,30 @@ export const getAssignedProjects = async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 };
+
+// getProjectsByClientId (client api)
+export const getProjectsByClientId = async (req, res) => {
+  const { clientId } = req.params;
+
+  if (!clientId) {
+    return res.status(400).json({ error: "clientId is required" });
+  }
+
+  try {
+    const [rows] = await pool.query(
+      `SELECT * FROM projects WHERE client_id = ?`,
+      [clientId]
+    );
+
+    if (rows.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "No projects found for this client." });
+    }
+
+    res.status(200).json({ projects: rows });
+  } catch (error) {
+    console.error("Error fetching client projects:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
