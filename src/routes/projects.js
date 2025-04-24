@@ -12,6 +12,7 @@ import {
   getProjectById,
   getDrawingsByProjectId,
   getAssignedTaskByProject,
+  createDesignDrawing,
 } from "../controllers/projectsController.js";
 import {
   getProjectDocuments,
@@ -59,7 +60,7 @@ router.get(
 );
 // get assigntask by project id
 router.get(
-  "/:projectId/tasks",
+  "/:projectId/assignTask",
   protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER),
   getAllTaskByProjectId
 );
@@ -69,5 +70,6 @@ router.get(
   protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER),
   getTeamDetailsByProjectId
 );
+router.post("/design_drawing", createDesignDrawing);
 
 export default router;
