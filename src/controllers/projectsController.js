@@ -511,21 +511,24 @@ export const createDesignDrawing = async (req, res) => {
 
 // GET all design drawings
 export const getAllDesignDrawings = async (req, res) => {
-  const { project_id } = req.params;
+  const { project_id } = req.params; // use 'project_id' to match the route
 
   if (!project_id) {
-    return res.status(400).json({ message: "project_id is required" });
+    return res
+      .status(400)
+      .json({ message: "Project ID is required in the URL parameters." });
   }
 
   try {
     const [rows] = await pool.query(
-      "SELECT * FROM design_drawing_list WHERE project_id = 9 ",
+      `SELECT * FROM drawing_list WHERE project_id = ?`,
       [project_id]
     );
-    res.status(200).json(rows);
+
+    res.status(200).json({ designDrawings: rows });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Error fetching design drawings", error });
+    console.error("Error fetching design drawings:", error);
+    res.status(500).json({ message: "Internal server error", error });
   }
 };
 
