@@ -521,7 +521,7 @@ export const getAllDesignDrawings = async (req, res) => {
 
   try {
     const [rows] = await pool.query(
-      `SELECT * FROM drawing_list WHERE project_id = ?`,
+      `SELECT * FROM design_drawing_list WHERE project_id = ?`,
       [project_id]
     );
 
