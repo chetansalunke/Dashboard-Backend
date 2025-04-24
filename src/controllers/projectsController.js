@@ -476,3 +476,26 @@ export const getAllDesignDrawings = async (req, res) => {
     res.status(500).json({ message: "Error fetching design drawings", error });
   }
 };
+// getAssignTaskByuerID
+export const getAssignedProjects = async (req, res) => {
+  const { userId } = req.params;
+
+  if (!userId) {
+    return res.status(400).json({ error: "userId is required" });
+  }
+
+  try {
+    const [rows] = await pool.query(
+      `SELECT DISTINCT p.id, p.projectName
+       FROM projects p
+       JOIN assign_task at ON p.id = at.project_id
+       WHERE at.assign_to = ?`,
+      [userId]
+    );
+
+    res.status(200).json({ projects: rows });
+  } catch (error) {
+    console.error("Error fetching assigned projects:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+};
