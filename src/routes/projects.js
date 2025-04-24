@@ -15,6 +15,7 @@ import {
   createDesignDrawing,
   getAllDesignDrawings,
   getAssignedProjects,
+  getDrawingListByUserId,
   getAssignedTaskByUser,
 } from "../controllers/projectsController.js";
 import {
@@ -92,5 +93,7 @@ router.get("/design_drawing/:project_id", getAllDesignDrawings);
 router.get("/assigned-projects/:userId", getAssignedProjects);
 
 router.get("/assigned-tasks/:userId", getAssignedTaskByUser);
+// getDrawingListByUserId
+router.get("/drawing-list/:userId", getDrawingListByUserId);
 
 export default router;

@@ -146,6 +146,32 @@ export const assignTask = async (req, res) => {
   }
 };
 
+export const getDrawingListByUserId = async (req, res) => {
+  const { userId } = req.params;
+
+  if (!userId) {
+    return res.status(400).json({ error: "User ID is required" });
+  }
+
+  try {
+    const [rows] = await pool.query(
+      `SELECT * FROM gigfactorydb.drawing_list WHERE assign_to = ?`,
+      [userId]
+    );
+
+    if (rows.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "No drawing list items assigned to this user." });
+    }
+
+    res.status(200).json({ drawingList: rows });
+  } catch (error) {
+    console.error("Error fetching drawing list by user ID:", error);
+    res.status(500).json({ error: "Database error" });
+  }
+};
+
 export const createTeam = async (req, res) => {
   try {
     const { projectId, userId, email, designation, status } = req.body;
@@ -384,7 +410,6 @@ export const getAssignedTaskByUser = async (req, res) => {
     return res.status(500).json({ error: "Internal Server Error" });
   }
 };
-
 
 export const getTeamDetailsByProjectId = async (req, res) => {
   const { projectId } = req.params;
