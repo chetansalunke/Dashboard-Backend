@@ -33,7 +33,7 @@ export const getAllUsers = async (req, res) => {
   try {
     const [rows] = await pool.query(
       `
-      SELECT id, username, email, role, status 
+      SELECT id, username, email, role, status ,phone_number 
       FROM users 
       WHERE status IN ("internal_stakeholder", "external_stakeholder")
       `
