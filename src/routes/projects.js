@@ -13,6 +13,7 @@ import {
   getDrawingsByProjectId,
   getAssignedTaskByProject,
   createDesignDrawing,
+  getAllDesignDrawings,
 } from "../controllers/projectsController.js";
 import {
   getProjectDocuments,
@@ -29,8 +30,20 @@ const storage = multer.diskStorage({
     cb(null, `${Date.now()}-${file.originalname}`);
   },
 });
+const design_drawingStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "uploads/design_drawing");
+  },
+  filename: (req, file, cb) => {
+    cb(null, `${Date.now()}-${file.originalname}`);
+  },
+});
 
 const upload = multer({ storage });
+const design_drawing_list = multer({ storage: design_drawingStorage }).array(
+  "design_documents",
+  10
+);
 
 router.post("/add", protect(), upload.array("documents", 10), createProject);
 router.post("/drawingList/add", protect(), createDrawingList);
@@ -70,6 +83,7 @@ router.get(
   protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER),
   getTeamDetailsByProjectId
 );
-router.post("/design_drawing", createDesignDrawing);
-
+// add the design_drawing
+router.post("/design_drawing", design_drawing_list, createDesignDrawing);
+router.get("/design_drawing/:project_id", getAllDesignDrawings);
 export default router;

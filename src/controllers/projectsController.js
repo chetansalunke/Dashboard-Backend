@@ -382,20 +382,41 @@ export const getTeamDetailsByProjectId = async (req, res) => {
 };
 
 export const createDesignDrawing = async (req, res) => {
-  const {
-    project_id,
-    name,
-    remark,
-    discipline,
-    document_path,
-    previous_versions,
-    latest_version_path,
-    status,
-    sent_by,
-  } = req.body;
-
   try {
-    const [result] = await db.execute(
+    const {
+      project_id,
+      name,
+      remark,
+      discipline,
+      status,
+      sent_by,
+      previous_versions,
+      latest_version_path,
+    } = req.body;
+
+    // Ensure required fields exist
+    if (!project_id || !name || !discipline || !sent_by) {
+      return res.status(400).json({ message: "Required fields are missing." });
+    }
+
+    // Handle uploaded document file (ensure it's present)
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: "No files uploaded." });
+    }
+
+    const documentPaths = req.files.map((file) => file.path); // Retrieve all document paths
+    if (documentPaths.length === 0) {
+      return res.status(400).json({ message: "No valid document uploaded." });
+    }
+
+    // If no latest_version_path is provided, set it to the first document uploaded (if any)
+    const final_latest_version_path = latest_version_path || documentPaths[0];
+
+    // Handle previous_versions as text from the body (it will already be a string)
+    const previous_versions_data = previous_versions ? previous_versions : [];
+
+    // Insert into database
+    const [result] = await pool.query(
       `INSERT INTO design_drawing_list (
         project_id, name, remark, discipline, document_path,
         previous_versions, latest_version_path, status, sent_by
@@ -403,12 +424,12 @@ export const createDesignDrawing = async (req, res) => {
       [
         project_id,
         name,
-        remark,
+        remark || null,
         discipline,
-        document_path,
-        JSON.stringify(previous_versions || []),
-        latest_version_path,
-        status,
+        JSON.stringify(documentPaths), // Store all document paths as JSON array
+        JSON.stringify(previous_versions_data), // Ensure previous_versions is stored as JSON
+        final_latest_version_path,
+        status || "Submitted",
         sent_by,
       ]
     );
@@ -418,22 +439,35 @@ export const createDesignDrawing = async (req, res) => {
       insertId: result.insertId,
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Error inserting design drawing", error });
+    console.error("Error inserting design drawing:", error);
+
+    // Check for MySQL duplicate entry error
+    if (error.code === "ER_DUP_ENTRY") {
+      return res.status(409).json({
+        message:
+          "A design drawing with the same name or document already exists.",
+        error,
+      });
+    }
+
+    res.status(500).json({
+      message: "Error inserting design drawing",
+      error,
+    });
   }
 };
 
 // GET all design drawings
 export const getAllDesignDrawings = async (req, res) => {
-  const { project_id } = req.query;
+  const { project_id } = req.params;
 
   if (!project_id) {
     return res.status(400).json({ message: "project_id is required" });
   }
 
   try {
-    const [rows] = await db.execute(
-      "SELECT * FROM design_drawing_list WHERE project_id = ? ORDER BY created_date DESC",
+    const [rows] = await pool.query(
+      "SELECT * FROM design_drawing_list WHERE project_id = 9 ",
       [project_id]
     );
     res.status(200).json(rows);
