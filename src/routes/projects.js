@@ -18,6 +18,8 @@ import {
   getDrawingListByUserId,
   getAssignedTaskByUser,
   getProjectsByClientId,
+  sendDrawingToUser,
+  getDrawingsSentToUser,
 } from "../controllers/projectsController.js";
 import {
   getProjectDocuments,
@@ -98,5 +100,15 @@ router.get("/assigned-tasks/:userId", getAssignedTaskByUser);
 // getDrawingListByUserId
 router.get("/drawing-list/:userId", getDrawingListByUserId);
 router.get("/client/:clientId", getProjectsByClientId);
-
+// send the design_drawing to users
+router.put(
+  "/drawings/send/:drawingId",
+  protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER, ROLE.CLIENT),
+  sendDrawingToUser
+);
+router.get(
+  "/drawings/sent-to/:userId",
+  protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER, ROLE.CLIENT),
+  getDrawingsSentToUser
+);
 export default router;

@@ -117,8 +117,16 @@ export const assignTask = async (req, res) => {
       ? req.files.map((file) => file.path).join(",")
       : null;
 
-    // Convert checklist to JSON string
-    const checklistJson = JSON.stringify(checklist || []);
+    let checklistArray = [];
+    try {
+      checklistArray = checklist ? JSON.parse(checklist) : [];
+    } catch (parseError) {
+      console.error("Failed to parse checklist:", checklist);
+      return res.status(400).json({ error: "Invalid checklist format" });
+    }
+
+    // Store as stringified JSON
+    const checklistJson = JSON.stringify(checklistArray);
 
     const [result] = await pool.query(
       `INSERT INTO gigfactorydb.assign_task
@@ -580,5 +588,57 @@ export const getProjectsByClientId = async (req, res) => {
   } catch (error) {
     console.error("Error fetching client projects:", error);
     res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+// sentTo api
+
+export const sendDrawingToUser = async (req, res) => {
+  const { drawingId } = req.params;
+  const { sentTo, sentBy } = req.body;
+
+  try {
+    const [existing] = await pool.query(
+      "SELECT * FROM design_drawing_list WHERE id = ?",
+      [drawingId]
+    );
+
+    if (existing.length === 0) {
+      return res.status(404).json({ error: "Drawing not found" });
+    }
+
+    await pool.query(
+      "UPDATE design_drawing_list SET sent_to = ?, sent_by = ?, status = 'Sent' WHERE id = ?",
+      [sentTo, sentBy, drawingId]
+    );
+
+    res.status(200).json({ message: "Drawing sent successfully" });
+  } catch (error) {
+    console.error("Error sending drawing:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+export const getDrawingsSentToUser = async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const [rows] = await pool.query(
+      `SELECT d.*, p.projectName, u.username as sentByName
+       FROM design_drawing_list d
+       JOIN projects p ON d.project_id = p.id
+       JOIN users u ON d.sent_by = u.id
+       WHERE d.sent_to = ?`,
+      [userId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "No drawings sent to this user." });
+    }
+
+    res.status(200).json({ drawings: rows });
+  } catch (error) {
+    console.error("Error fetching drawings for user:", error);
+    res.status(500).json({ error: "Server error" });
   }
 };
