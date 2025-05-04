@@ -117,16 +117,8 @@ export const assignTask = async (req, res) => {
       ? req.files.map((file) => file.path).join(",")
       : null;
 
-    let checklistArray = [];
-    try {
-      checklistArray = checklist ? JSON.parse(checklist) : [];
-    } catch (parseError) {
-      console.error("Failed to parse checklist:", checklist);
-      return res.status(400).json({ error: "Invalid checklist format" });
-    }
-
-    // Store as stringified JSON
-    const checklistJson = JSON.stringify(checklistArray);
+    // Convert checklist to JSON string
+    const checklistJson = JSON.stringify(checklist || []);
 
     const [result] = await pool.query(
       `INSERT INTO gigfactorydb.assign_task
