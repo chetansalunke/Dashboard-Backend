@@ -20,6 +20,8 @@ import {
   getProjectsByClientId,
   sendDrawingToUser,
   getDrawingsSentToUser,
+  uploadNewDrawingVersion,
+  updateTaskStatus,
 } from "../controllers/projectsController.js";
 import {
   getProjectDocuments,
@@ -65,7 +67,7 @@ router.get("/:projectId/documents", protect(), getProjectDocuments);
 router.get("/alll", protect([ROLE.ADMIN]), getAllProjects);
 router.get("/all", getAllProjects);
 // get project details by projectid
-router.get("/:projectId", protect([ROLE.ADMIN], [ROLE.EXPERT]), getProjectById);
+router.get("/:projectId", getProjectById);
 router.get(
   "/:projectId/assignTask",
   protect([ROLE.ADMIN], [ROLE.EXPERT]),
@@ -77,6 +79,8 @@ router.get(
   protect([ROLE.ADMIN], [ROLE.EXPERT]),
   getDrawingsByProjectId
 );
+// update assign task status
+router.put("/assignTask/:taskId/status", updateTaskStatus);
 // get assigntask by project id
 router.get(
   "/:projectId/assignTask",
@@ -91,14 +95,28 @@ router.get(
 );
 // add the design_drawing
 router.post("/design_drawing", design_drawing_list, createDesignDrawing);
+router.post(
+  "/:drawing_id/version",
+  design_drawing_list,
+  uploadNewDrawingVersion
+);
+
 router.get("/design_drawing/:project_id", getAllDesignDrawings);
 
 // getAssignTaskByuerID
 router.get("/assigned-projects/:userId", getAssignedProjects);
 
-router.get("/assigned-tasks/:userId", getAssignedTaskByUser);
+router.get(
+  "/assigned-tasks/:userId",
+  protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER, ROLE.CLIENT),
+  getAssignedTaskByUser
+);
 // getDrawingListByUserId
-router.get("/drawing-list/:userId", getDrawingListByUserId);
+router.get(
+  "/drawing-list/:userId",
+  protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER, ROLE.CLIENT),
+  getDrawingListByUserId
+);
 router.get("/client/:clientId", getProjectsByClientId);
 // send the design_drawing to users
 router.put(

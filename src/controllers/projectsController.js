@@ -145,6 +145,44 @@ export const assignTask = async (req, res) => {
     res.status(500).json({ error: "Database error" });
   }
 };
+// update task status
+export const updateTaskStatus = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const { status } = req.body;
+
+    if (!status) {
+      return res.status(400).json({ error: "Status is required" });
+    }
+
+    // 1. Check the current status of the task
+    const [existing] = await pool.query(
+      `SELECT status FROM gigfactorydb.assign_task WHERE id = ?`,
+      [taskId]
+    );
+
+    if (existing.length === 0) {
+      return res.status(404).json({ error: "Task not found" });
+    }
+
+    if (existing[0].status === "Completed") {
+      return res.status(400).json({
+        error: "Task is already completed and cannot be updated again",
+      });
+    }
+
+    // 2. Proceed to update status
+    const [result] = await pool.query(
+      `UPDATE gigfactorydb.assign_task SET status = ? WHERE id = ?`,
+      [status, taskId]
+    );
+
+    res.status(200).json({ message: "Task status updated successfully" });
+  } catch (error) {
+    console.error("Error updating task status:", error);
+    res.status(500).json({ error: "Database error" });
+  }
+};
 
 export const getDrawingListByUserId = async (req, res) => {
   const { userId } = req.params;
@@ -394,7 +432,18 @@ export const getAssignedTaskByUser = async (req, res) => {
 
   try {
     const [rows] = await pool.query(
-      `SELECT * FROM assign_task WHERE assign_to = ?`,
+      `SELECT 
+  assign_task.*, 
+  projects.projectName 
+FROM 
+  assign_task 
+JOIN 
+  projects 
+ON 
+  assign_task.project_id = projects.id 
+WHERE 
+  assign_task.assign_to = ?
+`,
       [userId]
     );
 
@@ -434,81 +483,154 @@ export const getTeamDetailsByProjectId = async (req, res) => {
 };
 
 export const createDesignDrawing = async (req, res) => {
+  const {
+    project_id,
+    name,
+    remark,
+    discipline,
+    status,
+    sent_by,
+    previous_versions,
+    uploaded_by,
+  } = req.body;
+
+  console.log(req.body);
+  console.log(req.files);
+
+  // 1. Basic Validation
+  if (!project_id || !name || !discipline || !sent_by || !uploaded_by) {
+    return res.status(400).json({ message: "Required fields are missing." });
+  }
+
+  // 2. File Upload Validation
+  if (!req.files || req.files.length === 0) {
+    return res.status(400).json({ message: "No files uploaded." });
+  }
+
+  const documentPaths = req.files.map((file) => file.path); // All uploaded files
+  const final_latest_version_path = documentPaths[0]; // First file as latest version
+  const previous_versions_data = previous_versions || [];
+
+  const conn = await pool.getConnection();
+
   try {
-    const {
-      project_id,
-      name,
-      remark,
-      discipline,
-      status,
-      sent_by,
-      previous_versions,
-      latest_version_path,
-    } = req.body;
+    await conn.beginTransaction();
 
-    // Ensure required fields exist
-    if (!project_id || !name || !discipline || !sent_by) {
-      return res.status(400).json({ message: "Required fields are missing." });
-    }
-
-    // Handle uploaded document file (ensure it's present)
-    if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ message: "No files uploaded." });
-    }
-
-    const documentPaths = req.files.map((file) => file.path); // Retrieve all document paths
-    if (documentPaths.length === 0) {
-      return res.status(400).json({ message: "No valid document uploaded." });
-    }
-
-    // If no latest_version_path is provided, set it to the first document uploaded (if any)
-    const final_latest_version_path = latest_version_path || documentPaths[0];
-
-    // Handle previous_versions as text from the body (it will already be a string)
-    const previous_versions_data = previous_versions ? previous_versions : [];
-
-    // Insert into database
-    const [result] = await pool.query(
-      `INSERT INTO design_drawing_list (
-        project_id, name, remark, discipline, document_path,
-        previous_versions, latest_version_path, status, sent_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    // 3. Insert into design_drawing_list
+    const [drawingResult] = await conn.query(
+      `
+      INSERT INTO design_drawing_list (
+        project_id, name, remark, discipline,
+        status, sent_by
+      ) VALUES (?, ?, ?, ?, ?, ?)
+      `,
       [
         project_id,
         name,
         remark || null,
         discipline,
-        JSON.stringify(documentPaths), // Store all document paths as JSON array
-        JSON.stringify(previous_versions_data), // Ensure previous_versions is stored as JSON
-        final_latest_version_path,
-        status || "Submitted",
+        status || "Under Review",
         sent_by,
       ]
     );
 
+    const drawing_id = drawingResult.insertId;
+
+    // 4. Insert each file as a version in drawing_versions
+    let version = 1;
+    for (const path of documentPaths) {
+      await conn.query(
+        `
+        INSERT INTO drawing_versions (
+          drawing_id, version_number, document_path, uploaded_by, is_latest
+        ) VALUES (?, ?, ?, ?, ?)
+        `,
+        [
+          drawing_id,
+          version,
+          path,
+          uploaded_by,
+          version === 1 ? true : false, // only the first one is marked latest
+        ]
+      );
+      version++;
+    }
+
+    await conn.commit();
+
     res.status(201).json({
-      message: "Design drawing created successfully",
-      insertId: result.insertId,
+      message: "Design drawing created successfully with initial version(s)",
+      insertId: drawing_id,
     });
   } catch (error) {
+    await conn.rollback();
     console.error("Error inserting design drawing:", error);
-
-    // Check for MySQL duplicate entry error
-    if (error.code === "ER_DUP_ENTRY") {
-      return res.status(409).json({
-        message:
-          "A design drawing with the same name or document already exists.",
-        error,
-      });
-    }
 
     res.status(500).json({
       message: "Error inserting design drawing",
       error,
     });
+  } finally {
+    conn.release();
   }
 };
+export const uploadNewDrawingVersion = async (req, res) => {
+  const { drawing_id } = req.params;
+  const { uploaded_by } = req.body;
 
+  console.log(req.params);
+  console.log(req.body);
+  console.log(req.files);
+
+  if (!drawing_id || !uploaded_by || !req.file) {
+    return res
+      .status(400)
+      .json({ message: "Missing required fields or file." });
+  }
+
+  const filePath = req.file.path;
+
+  const conn = await pool.getConnection();
+
+  try {
+    await conn.beginTransaction();
+
+    // 1. Get latest version number
+    const [[lastVersionRow]] = await conn.query(
+      `SELECT MAX(version_number) AS lastVersion FROM drawing_versions WHERE drawing_id = ?`,
+      [drawing_id]
+    );
+
+    const version_number = (lastVersionRow?.lastVersion || 0) + 1;
+
+    // 2. Mark all previous versions as not latest
+    await conn.query(
+      `UPDATE drawing_versions SET is_latest = FALSE WHERE drawing_id = ?`,
+      [drawing_id]
+    );
+
+    // 3. Insert new version
+    await conn.query(
+      `INSERT INTO drawing_versions (drawing_id, version_number, document_path, uploaded_by, is_latest)
+       VALUES (?, ?, ?, ?, TRUE)`,
+      [drawing_id, version_number, filePath, uploaded_by]
+    );
+
+    await conn.commit();
+
+    res.status(201).json({
+      message: "New version uploaded successfully",
+      version: version_number,
+      document_path: filePath,
+    });
+  } catch (error) {
+    await conn.rollback();
+    console.error("Error uploading new drawing version:", error);
+    res.status(500).json({ message: "Failed to upload new version", error });
+  } finally {
+    conn.release();
+  }
+};
 // GET all design drawings
 export const getAllDesignDrawings = async (req, res) => {
   const { project_id } = req.params; // use 'project_id' to match the route
