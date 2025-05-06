@@ -64,19 +64,19 @@ router.post(
 router.post("/createTeam", protect(), createTeam);
 router.get("/:projectId/documents", protect(), getProjectDocuments);
 // show all project to the admin only
-router.get("/alll", protect([ROLE.ADMIN]), getAllProjects);
+router.get("/alll", protect(ROLE.ADMIN), getAllProjects);
 router.get("/all", getAllProjects);
 // get project details by projectid
 router.get("/:projectId", getProjectById);
 router.get(
   "/:projectId/assignTask",
-  protect([ROLE.ADMIN], [ROLE.EXPERT]),
+  protect(ROLE.ADMIN, ROLE.EXPERT),
   getAssignedTaskByProject
 );
 // get drawing list by projectId
 router.get(
   "/drawingList/:projectId",
-  protect([ROLE.ADMIN], [ROLE.EXPERT]),
+  protect(ROLE.ADMIN, ROLE.DESIGNER, ROLE.EXPERT),
   getDrawingsByProjectId
 );
 // update assign task status

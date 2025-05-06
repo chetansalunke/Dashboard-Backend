@@ -77,28 +77,38 @@ export const createDrawingList = async (req, res) => {
       projectId,
     } = req.body;
 
+    // ✅ Validate required fields
+    if (!drawingNumber || !drawingName || !projectId) {
+      return res.status(400).json({
+        error:
+          "Missing required fields: drawingNumber, drawingName, or projectId",
+      });
+    }
+
     const [result] = await pool.query(
       `INSERT INTO gigfactorydb.drawing_list
-        (drawing_number, drawing_name, start_date, end_date,assign_to, project_id)
-        VALUES (?,?,?,?,?,?)`,
+        (drawing_number, drawing_name, start_date, end_date, assign_to, project_id)
+        VALUES (?, ?, ?, ?, ?, ?)`,
       [
-        drawingNumber || null,
-        drawingName || null,
+        drawingNumber,
+        drawingName,
         startDate || null,
         endDate || null,
         assignTo || null,
-        projectId || null,
+        projectId,
       ]
     );
 
     res.status(201).json({
       message: "Drawing List created successfully",
+      drawingId: result.insertId,
     });
   } catch (error) {
     console.error("Error creating project:", error);
     res.status(500).json({ error: "Database error" });
   }
 };
+
 // assign task controller
 export const assignTask = async (req, res) => {
   try {
