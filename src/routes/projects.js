@@ -62,7 +62,7 @@ router.post(
   assignTask
 );
 router.post("/createTeam", protect(), createTeam);
-router.get("/:projectId/documents", protect(), getProjectDocuments);
+router.get("/:projectId/documents", getProjectDocuments);
 // show all project to the admin only
 router.get("/alll", protect(ROLE.ADMIN), getAllProjects);
 router.get("/all", getAllProjects);
