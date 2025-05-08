@@ -1,6 +1,6 @@
 // src/controllers/projectsController.js
 import pool from "../config/db.js";
-
+import path from "path";
 // create project
 export const createProject = async (req, res) => {
   try {
@@ -21,9 +21,12 @@ export const createProject = async (req, res) => {
     } = req.body;
 
     const documentPaths = req.files
-      ? req.files.map((file) => file.path).join(",")
+      ? req.files
+          .map((file) => path.relative(process.cwd(), file.path))
+          .join(",")
       : null;
 
+    console.log(documentPaths);
     const creation_date = new Date();
     const status = "Pending";
 
@@ -124,8 +127,12 @@ export const assignTask = async (req, res) => {
 
     // Handle uploaded files (e.g., from multer)
     const documentPaths = req.files
-      ? req.files.map((file) => file.path).join(",")
+      ? req.files
+          .map((file) => path.relative(process.cwd(), file.path))
+          .join(",")
       : null;
+
+    console.log(documentPaths);
 
     // Convert checklist to JSON string
     const checklistJson = JSON.stringify(checklist || []);
