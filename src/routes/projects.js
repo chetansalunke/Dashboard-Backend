@@ -134,7 +134,7 @@ router.get("/:projectId", getProjectById);
 // Task management routes
 router.get(
   "/:projectId/assignTask",
-  protect(ROLE.ADMIN, ROLE.EXPERT),
+  protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER),
   getAssignedTaskByProject
 );
 router.put("/assignTask/:taskId/status", updateTaskStatus);
