@@ -6,6 +6,7 @@ import fs from "fs";
 import { ROLE } from "../constants/role.js";
 import {
   createProject,
+  getDrawingHistory,
   createDrawingList,
   assignTask,
   createTeam,
@@ -14,18 +15,25 @@ import {
   getProjectById,
   getDrawingsByProjectId,
   getAssignedTaskByProject,
+  getAllDrawingsWithVersions,
   createDesignDrawing,
-  getAllDesignDrawings,
+  // createDesignDrawing,
+  // getAllDesignDrawings,
   getAssignedProjects,
   getDrawingListByUserId,
   getAssignedTaskByUser,
   getProjectsByClientId,
   sendDrawingToUser,
   getDrawingsSentToUser,
-  uploadNewDrawingVersion,
+  // uploadNewDrawingVersion,
   updateTaskStatus,
   getProjectDocuments,
   getAllProjects,
+  uploadDrawingVersion,
+  reviewDrawing,
+  submitToClient,
+  clientReview,
+  getDesignDrawings,
 } from "../controllers/projectsController.js";
 import protect from "../middlewares/authMiddleware.js";
 
@@ -151,13 +159,13 @@ router.get(
   protect(ROLE.ADMIN, ROLE.DESIGNER, ROLE.EXPERT),
   getDrawingsByProjectId
 );
-router.post("/design_drawing", processDesignUpload, createDesignDrawing);
-router.post(
-  "/:drawing_id/version",
-  processDesignUpload,
-  uploadNewDrawingVersion
-);
-router.get("/design_drawing/:project_id", getAllDesignDrawings);
+// router.post("/design_drawing", processDesignUpload, createDesignDrawing);
+// router.post(
+//   "/:drawing_id/version",
+//   processDesignUpload,
+//   uploadNewDrawingVersion
+// );
+// router.get("/design_drawing/:project_id", getAllDesignDrawings);
 router.get(
   "/drawing-list/:userId",
   protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER, ROLE.CLIENT),
@@ -182,5 +190,52 @@ router.get(
 );
 router.get("/assigned-projects/:userId", getAssignedProjects);
 router.get("/client/:clientId", getProjectsByClientId);
+
+// DesignDrawing New Api
+router.post(
+  "/drawings/create",
+  protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER),
+  processDesignUpload,
+  createDesignDrawing
+);
+router.post(
+  "/drawings/:id/upload",
+  protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER),
+  processDesignUpload,
+  uploadDrawingVersion
+);
+
+// REVIEW by expert (approve or request revision)
+router.post(
+  "/drawings/:id/review",
+  protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER),
+  reviewDrawing
+);
+
+// SUBMIT to client
+router.post("drawings/:id/submit", submitToClient);
+
+// CLIENT review of submitted drawing
+router.post(
+  "/submissions/:id/review",
+  protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER),
+  clientReview
+);
+// get drawings
+router.get(
+  "/drawings/:id?",
+  protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER),
+  getDesignDrawings
+);
+router.get(
+  "/drawings/:id/history",
+  protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER),
+  getDrawingHistory
+);
+router.get(
+  "/:projectId/drawings",
+  protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER),
+  getAllDrawingsWithVersions
+);
 
 export default router;
