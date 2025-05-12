@@ -772,7 +772,7 @@ export const getDrawingsSentToUser = async (req, res) => {
   }
 };
 
-// Create Drawing List
+// Create Design Drawing
 
 export const createDesignDrawing = async (req, res) => {
   try {
@@ -791,27 +791,24 @@ export const createDesignDrawing = async (req, res) => {
           .join(",")
       : null;
 
-    // Step 1: Insert into design_drawing_list
     const [drawingResult] = await pool.query(
       `INSERT INTO design_drawing_list 
-      (project_id, name, remark, discipline, status, sent_by, sent_to) 
-      VALUES (?, ?, ?, ?, 'Under Review', ?, ?)`,
+        (project_id, name, remark, discipline, status, sent_by, sent_to) 
+       VALUES (?, ?, ?, ?, 'Sent to Expert', ?, ?)`,
       [project_id, name, remark || "", discipline, sent_by, sent_to]
     );
 
     const drawingId = drawingResult.insertId;
 
-    // Step 2: Insert initial version into drawing_versions
     const [versionResult] = await pool.query(
       `INSERT INTO drawing_versions 
        (drawing_id, version_number, document_path, uploaded_by, is_latest) 
-       VALUES (?, ?, ?, ?, 1)`,
-      [drawingId, 1, documentPaths, sent_by]
+       VALUES (?, 1, ?, ?, 1)`,
+      [drawingId, documentPaths, sent_by]
     );
 
     const latestVersionId = versionResult.insertId;
 
-    // Step 3: Update design_drawing_list with latest_version_id
     await pool.query(
       `UPDATE design_drawing_list SET latest_version_id = ? WHERE id = ?`,
       [latestVersionId, drawingId]
@@ -820,38 +817,41 @@ export const createDesignDrawing = async (req, res) => {
     return res.status(201).json({
       drawing_id: drawingId,
       latest_version_id: latestVersionId,
-      message: "Drawing created with version tracking.",
+      message: "Drawing created and sent to expert for review.",
     });
   } catch (err) {
-    console.error("Upload/Create Error:", err.message);
-    return res
-      .status(500)
-      .json({ error: "Failed to create drawing with version." });
+    console.error("Create Drawing Error:", err.message);
+    return res.status(500).json({ error: "Failed to create drawing." });
   }
 };
+
 export const uploadDrawingVersion = async (req, res) => {
   try {
     const drawing_id = req.params.id;
     const { uploaded_by, comment } = req.body;
+
     const documentPaths = req.files
       ? req.files
           .map((file) => path.relative(process.cwd(), file.path))
           .join(",")
       : null;
 
-    // 1. Get current drawing status
+    // Check current status: only allow if status is revision-required
     const [[drawing]] = await pool.query(
       `SELECT status FROM design_drawing_list WHERE id = ?`,
       [drawing_id]
     );
 
-    if (!drawing || drawing.status !== "Revision Required") {
+    const allowedStatuses = [
+      "Revision Required by Expert",
+      "Revision Required by Client",
+    ];
+    if (!drawing || !allowedStatuses.includes(drawing.status)) {
       return res.status(400).json({
-        error: "Drawing is not in 'Revision Required' state.",
+        error: "Drawing is not in a revision-required state.",
       });
     }
 
-    // 2. Get latest version
     const [current] = await pool.query(
       `SELECT id, version_number FROM drawing_versions WHERE drawing_id = ? AND is_latest = 1`,
       [drawing_id]
@@ -859,7 +859,6 @@ export const uploadDrawingVersion = async (req, res) => {
     const currentVersion = current[0];
     const next_version = (currentVersion?.version_number || 0) + 1;
 
-    // 3. Mark previous as not latest
     if (currentVersion) {
       await pool.query(
         `UPDATE drawing_versions SET is_latest = 0 WHERE id = ?`,
@@ -867,7 +866,6 @@ export const uploadDrawingVersion = async (req, res) => {
       );
     }
 
-    // 4. Insert new version
     const [newVersion] = await pool.query(
       `INSERT INTO drawing_versions 
        (drawing_id, version_number, document_path, uploaded_by, comment, is_latest) 
@@ -877,16 +875,15 @@ export const uploadDrawingVersion = async (req, res) => {
 
     const newVersionId = newVersion.insertId;
 
-    // 5. Update master table
     await pool.query(
       `UPDATE design_drawing_list 
-       SET latest_version_id = ?, previous_version_id = ?, status = 'Under Review' 
+       SET latest_version_id = ?, previous_version_id = ?, status = 'Sent to Expert' 
        WHERE id = ?`,
       [newVersionId, currentVersion?.id || null, drawing_id]
     );
 
     return res.status(200).json({
-      message: "New version uploaded and sent for review.",
+      message: "New version uploaded. Sent to expert for review.",
       version_id: newVersionId,
     });
   } catch (err) {
@@ -899,42 +896,50 @@ export const uploadDrawingVersion = async (req, res) => {
 export const reviewDrawing = async (req, res) => {
   try {
     const drawing_id = req.params.id;
-    const { status, comment } = req.body;
+    const { status, comment, reviewer_id } = req.body;
 
-    // Basic field validation
-    if (!drawing_id || !status) {
+    if (!drawing_id || !status || !reviewer_id) {
       return res.status(400).json({
-        error: "Missing drawing ID or status.",
+        error: "Missing drawing ID, status, or reviewer ID.",
       });
     }
 
-    // ✅ Explicit status validation
-    const allowedStatuses = ["Approved", "Revision Required"];
+    const allowedStatuses = [
+      "Approved by Expert",
+      "Revision Required by Expert",
+    ];
     if (!allowedStatuses.includes(status)) {
       return res.status(400).json({
         error: `Invalid status. Allowed values: ${allowedStatuses.join(", ")}`,
       });
     }
 
-    // Process based on status
-    if (status === "Approved") {
-      await pool.query(
-        `UPDATE design_drawing_list SET status = 'Approved' WHERE id = ?`,
-        [drawing_id]
-      );
-    } else if (status === "Revision Required") {
-      await pool.query(
-        `UPDATE design_drawing_list SET status = ? WHERE id = ?`,
-        [status, drawing_id]
-      );
+    // Update status in design_drawing_list
+    await pool.query(`UPDATE design_drawing_list SET status = ? WHERE id = ?`, [
+      status,
+      drawing_id,
+    ]);
+
+    // If revision is required, update latest version comment
+    if (status === "Revision Required by Expert" && comment) {
       await pool.query(
         `UPDATE drawing_versions SET comment = ? WHERE drawing_id = ? AND is_latest = 1`,
-        [comment || "", drawing_id]
+        [comment, drawing_id]
+      );
+    }
+
+    // Add comment to review history
+    if (comment) {
+      await pool.query(
+        `INSERT INTO drawing_review_comments 
+         (drawing_id, reviewer_id, comment) 
+         VALUES (?, ?, ?)`,
+        [drawing_id, reviewer_id, comment]
       );
     }
 
     return res.status(200).json({
-      message: `Drawing marked as ${status}.`,
+      message: `Drawing reviewed and marked as "${status}".`,
     });
   } catch (err) {
     console.error("Review Error:", err);
@@ -948,67 +953,127 @@ export const reviewDrawing = async (req, res) => {
 export const submitToClient = async (req, res) => {
   try {
     const drawing_id = req.params.id;
-    const { submitted_by, submitted_to } = req.body;
+    const { submitted_by, submitted_to, comment } = req.body;
 
     if (!drawing_id || !submitted_by || !submitted_to) {
-      return sendResponse(res, 400, { error: "Missing required fields." });
+      return res.status(400).json({ error: "Missing required fields." });
     }
 
-    const sql = `
-      INSERT INTO submission (drawing_id, submitted_by, submitted_to, status) 
-      VALUES (?, ?, ?, 'Under Review')
-    `;
+    // Optional: Only allow submission if approved by expert
+    const [[drawing]] = await pool.query(
+      `SELECT status FROM design_drawing_list WHERE id = ?`,
+      [drawing_id]
+    );
 
-    const [result] = await pool.query(sql, [
-      drawing_id,
-      submitted_by,
-      submitted_to,
-    ]);
+    if (!drawing || drawing.status !== "Approved by Expert") {
+      return res.status(400).json({
+        error: "Drawing must be 'Approved by Expert' before sending to client.",
+      });
+    }
 
-    return sendResponse(res, 201, {
+    // Insert into submissions table
+    const [result] = await pool.query(
+      `INSERT INTO drawing_submissions 
+        (drawing_id, submitted_by, submitted_to, status) 
+       VALUES (?, ?, ?, 'Pending')`,
+      [drawing_id, submitted_by, submitted_to]
+    );
+
+    const submission_id = result.insertId;
+
+    // Update drawing status
+    await pool.query(
+      `UPDATE design_drawing_list SET status = 'Sent to Client' WHERE id = ?`,
+      [drawing_id]
+    );
+
+    // Save comment if provided
+    if (comment) {
+      await pool.query(
+        `INSERT INTO drawing_submission_comments 
+         (submission_id, commenter_role, commenter_id, comment) 
+         VALUES (?, 'Expert', ?, ?)`,
+        [submission_id, submitted_by, comment]
+      );
+    }
+
+    return res.status(201).json({
       message: "Drawing submitted to client.",
-      submission_id: result.insertId,
+      submission_id,
     });
   } catch (err) {
     console.error("Submit Error:", err);
-    return sendResponse(res, 500, {
-      error: "Failed to submit drawing to client.",
-    });
+    return res.status(500).json({ error: "Failed to submit drawing." });
   }
 };
 
 // CLIENT Reviews Drawing
 export const clientReview = async (req, res) => {
   try {
-    const id = req.params.id;
-    const { status } = req.body;
+    const submission_id = req.params.id;
+    const { status, client_id, comment } = req.body;
 
-    if (!id || !status) {
-      return sendResponse(res, 400, {
-        error: "Missing submission ID or status.",
+    if (!submission_id || !status || !client_id) {
+      return res.status(400).json({
+        error: "Missing required fields: submission ID, status, or client ID.",
       });
     }
 
-    await pool.query(`UPDATE submission SET status = ? WHERE id = ?`, [
+    const allowedStatuses = [
+      "Approved by Client",
+      "Revision Required by Client",
+      "Rejected by Client",
+    ];
+
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({
+        error: `Invalid status. Allowed values: ${allowedStatuses.join(", ")}`,
+      });
+    }
+
+    // 1. Check if the submission exists
+    const [[submission]] = await pool.query(
+      "SELECT drawing_id FROM drawing_submissions WHERE id = ?",
+      [submission_id]
+    );
+
+    if (!submission) {
+      return res.status(404).json({ error: "Submission not found." });
+    }
+
+    const drawing_id = submission.drawing_id;
+
+    // 2. Update submission record
+    await pool.query(`UPDATE drawing_submissions SET status = ? WHERE id = ?`, [
       status,
-      id,
+      submission_id,
     ]);
 
-    if (status === "Approved") {
+    // 3. Update drawing status
+    await pool.query(`UPDATE design_drawing_list SET status = ? WHERE id = ?`, [
+      status,
+      drawing_id,
+    ]);
+
+    // 4. Save comment if provided
+    if (comment) {
       await pool.query(
-        `UPDATE design_drawing_list 
-         SET status = 'Approved' 
-         WHERE id = (SELECT drawing_id FROM submission WHERE id = ?)`,
-        [id]
+        `INSERT INTO drawing_submission_comments (
+          submission_id, commenter_role, commenter_id, comment
+        ) VALUES (?, 'Client', ?, ?)`,
+        [submission_id, client_id, comment]
       );
     }
 
-    return sendResponse(res, 200, { message: "Client review recorded." });
+    return res.status(200).json({
+      message: `Client review submitted. Drawing marked as "${status}".`,
+    });
   } catch (err) {
     console.error("Client Review Error:", err);
-    return sendResponse(res, 500, { error: "Failed to update client review." });
+    return res.status(500).json({ error: "Failed to process client review." });
   }
 };
+
 // get the drawings
 export const getDesignDrawings = async (req, res) => {
   try {
@@ -1086,7 +1151,10 @@ export const getDesignDrawings = async (req, res) => {
 
     let total = drawings.length;
     if (!id) {
-      const [countResult] = await pool.query(countQuery, params.slice(0, -2)); // exclude limit/offset
+      const [countResult] = await pool.query(
+        countQuery,
+        params.slice(0, -2) // Remove LIMIT & OFFSET
+      );
       total = countResult[0]?.total || 0;
     }
 
@@ -1107,37 +1175,19 @@ export const getDesignDrawings = async (req, res) => {
   }
 };
 
-// get drawing history
-export const getDrawingHistory = async (req, res) => {
-  try {
-    const drawing_id = req.params.id;
-
-    const [versions] = await pool.query(
-      `SELECT version_number, document_path, uploaded_by, comment, is_latest, uploaded_at 
-       FROM drawing_versions 
-       WHERE drawing_id = ? 
-       ORDER BY version_number ASC`,
-      [drawing_id]
-    );
-
-    return res.status(200).json({ versions });
-  } catch (err) {
-    console.error("History Fetch Error:", err.message);
-    return res.status(500).json({ error: "Failed to fetch version history." });
-  }
-};
-
+// get all drawings
 export const getAllDrawingsWithVersions = async (req, res) => {
   try {
-    const projectId = req.params.projectId;
+    const { projectId } = req.params;
 
-    // Optional: check if project exists
-    const [projectCheck] = await pool.query(
+    // Check if project exists
+    const [[projectCheck]] = await pool.query(
       "SELECT id FROM projects WHERE id = ?",
       [projectId]
     );
-    if (projectCheck.length === 0) {
-      return res.status(404).json({ error: "Project not found" });
+
+    if (!projectCheck) {
+      return res.status(404).json({ error: "Project not found." });
     }
 
     const [results] = await pool.query(
@@ -1148,16 +1198,12 @@ export const getAllDrawingsWithVersions = async (req, res) => {
         ddl.discipline,
         ddl.status,
         ddl.created_date AS last_updated,
-
         lv.id AS latest_version_id,
         lv.document_path AS latest_document_path,
         lv.version_number AS latest_version_number,
-
         pv.version_number AS previous_version_number,
         pv.document_path AS previous_document_path,
-
         u.username AS sent_by_name
-
       FROM design_drawing_list ddl
       LEFT JOIN drawing_versions lv ON ddl.latest_version_id = lv.id
       LEFT JOIN drawing_versions pv ON ddl.previous_version_id = pv.id
@@ -1172,5 +1218,200 @@ export const getAllDrawingsWithVersions = async (req, res) => {
   } catch (err) {
     console.error("Fetch Drawings Error:", err.message);
     return res.status(500).json({ error: "Failed to fetch drawing data." });
+  }
+};
+
+// GET comment History (expert -- > client)
+export const getCommentHistoryExpertClient = async (req, res) => {
+  try {
+    const { id: submission_id } = req.params;
+
+    const [comments] = await pool.query(
+      `
+      SELECT 
+        c.id,
+        c.commenter_role,
+        u.username AS commenter_name,
+        c.comment,
+        c.created_at
+      FROM drawing_submission_comments c
+      JOIN users u ON u.id = c.commenter_id
+      WHERE c.submission_id = ?
+      ORDER BY c.created_at ASC
+    `,
+      [submission_id]
+    );
+
+    return res.status(200).json({ comments });
+  } catch (err) {
+    console.error("Fetch History Error:", err);
+    return res.status(500).json({ error: "Failed to fetch comment history." });
+  }
+};
+
+// Get Comment History API (expert-->designer)
+export const getDrawingReviewComments = async (req, res) => {
+  try {
+    const { id: drawing_id } = req.params;
+
+    const [comments] = await pool.query(
+      `
+      SELECT 
+        c.id, 
+        c.comment, 
+        c.created_at, 
+        u.name AS reviewer_name
+      FROM drawing_review_comments c
+      JOIN users u ON c.reviewer_id = u.id
+      WHERE c.drawing_id = ?
+      ORDER BY c.created_at DESC
+      `,
+      [drawing_id]
+    );
+
+    return res.status(200).json({
+      message: "Review comments retrieved successfully.",
+      count: comments.length,
+      comments,
+    });
+  } catch (err) {
+    console.error("Fetch Comments Error:", err.message);
+    return res.status(500).json({
+      error: "Failed to fetch review comment history.",
+    });
+  }
+};
+
+// get drawing history
+export const getDrawingHistory = async (req, res) => {
+  try {
+    const { id: drawing_id } = req.params;
+
+    const [versions] = await pool.query(
+      `
+      SELECT 
+        version_number, 
+        document_path, 
+        uploaded_by, 
+        comment, 
+        is_latest, 
+        uploaded_at
+      FROM drawing_versions
+      WHERE drawing_id = ?
+      ORDER BY version_number ASC
+      `,
+      [drawing_id]
+    );
+
+    return res.status(200).json({
+      message: "Drawing version history retrieved successfully.",
+      count: versions.length,
+      versions,
+    });
+  } catch (err) {
+    console.error("History Fetch Error:", err.message);
+    return res.status(500).json({
+      error: "Failed to fetch drawing version history.",
+    });
+  }
+};
+
+// get Drawings Created by Specific Designer
+export const getDesignerDrawings = async (req, res) => {
+  const designerId = req.user.id; // Assumes `protect()` middleware sets req.user
+
+  try {
+    const [rows] = await pool.query(
+      `SELECT * FROM design_drawing_list WHERE sent_by = ? ORDER BY created_date DESC`,
+      [designerId]
+    );
+
+    return res.status(200).json({ drawings: rows });
+  } catch (err) {
+    console.error("Designer Drawings Error:", err);
+    return res.status(500).json({ error: "Failed to fetch drawings." });
+  }
+};
+
+// get  Expert Dashboard (Drawings sent to expert)
+export const getDrawingsForExpert = async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT d.*, u.name AS designer_name 
+       FROM design_drawing_list d 
+       JOIN users u ON d.sent_by = u.id
+       WHERE d.status = 'Sent to Expert' OR d.expert_status = 'Pending'
+       ORDER BY d.created_date DESC`
+    );
+
+    return res.status(200).json({ drawings: rows });
+  } catch (err) {
+    console.error("Expert Dashboard Error:", err);
+    return res.status(500).json({ error: "Failed to fetch expert drawings." });
+  }
+};
+
+//  get Client Dashboard (Drawings submitted by expert)
+export const getDrawingsForClient = async (req, res) => {
+  const clientId = req.user.id;
+
+  try {
+    const [rows] = await pool.query(
+      `SELECT ds.*, ddl.name AS drawing_name, ddl.document_path, u.name AS expert_name
+       FROM drawing_submissions ds
+       JOIN design_drawing_list ddl ON ds.drawing_id = ddl.id
+       JOIN users u ON ds.submitted_by = u.id
+       WHERE ds.submitted_to = ?
+       ORDER BY ds.submitted_at DESC`,
+      [clientId]
+    );
+
+    return res.status(200).json({ submissions: rows });
+  } catch (err) {
+    console.error("Client Dashboard Error:", err);
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch submitted drawings." });
+  }
+};
+
+// get Generic Drawing List (any user)
+export const getAllDrawings = async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT ddl.*, u.name AS designer_name, p.name AS project_name 
+       FROM design_drawing_list ddl
+       JOIN users u ON ddl.sent_by = u.id
+       JOIN projects p ON ddl.project_id = p.id
+       ORDER BY ddl.created_date DESC`
+    );
+
+    return res.status(200).json({ drawings: rows });
+  } catch (err) {
+    console.error("Generic Drawings Error:", err);
+    return res.status(500).json({ error: "Failed to fetch drawings." });
+  }
+};
+
+// Submissions History for a User
+export const getMySubmissions = async (req, res) => {
+  const userId = req.user.id;
+
+  try {
+    const [rows] = await pool.query(
+      `SELECT ds.*, ddl.name AS drawing_name, ddl.discipline, ddl.status AS drawing_status
+       FROM drawing_submissions ds
+       JOIN design_drawing_list ddl ON ds.drawing_id = ddl.id
+       WHERE ds.submitted_by = ? OR ds.submitted_to = ?
+       ORDER BY ds.submitted_at DESC`,
+      [userId, userId]
+    );
+
+    return res.status(200).json({ submissions: rows });
+  } catch (err) {
+    console.error("Submission History Error:", err);
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch submission history." });
   }
 };

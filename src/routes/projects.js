@@ -5,6 +5,11 @@ import path from "path";
 import fs from "fs";
 import { ROLE } from "../constants/role.js";
 import {
+  getDrawingsForExpert,
+  getDesignerDrawings,
+  getDrawingsForClient,
+  getAllDrawings,
+  getMySubmissions,
   createProject,
   getDrawingHistory,
   createDrawingList,
@@ -17,15 +22,12 @@ import {
   getAssignedTaskByProject,
   getAllDrawingsWithVersions,
   createDesignDrawing,
-  // createDesignDrawing,
-  // getAllDesignDrawings,
   getAssignedProjects,
   getDrawingListByUserId,
   getAssignedTaskByUser,
   getProjectsByClientId,
   sendDrawingToUser,
   getDrawingsSentToUser,
-  // uploadNewDrawingVersion,
   updateTaskStatus,
   getProjectDocuments,
   getAllProjects,
@@ -207,20 +209,16 @@ router.post(
 
 // REVIEW by expert (approve or request revision)
 router.post(
-  "/drawings/:id/review",
+  "/drawings/:id/reviewExpert",
   protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER),
   reviewDrawing
 );
 
 // SUBMIT to client
-router.post("drawings/:id/submit", submitToClient);
+router.post("/drawings/:id/submitClient", submitToClient);
 
 // CLIENT review of submitted drawing
-router.post(
-  "/submissions/:id/review",
-  protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER),
-  clientReview
-);
+router.post("/submissions/:id/reviewClient", clientReview);
 // get drawings
 router.get(
   "/drawings/:id?",
@@ -237,5 +235,24 @@ router.get(
   protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER),
   getAllDrawingsWithVersions
 );
+
+// Designer-created drawings
+router.get("/drawings/designer", protect(ROLE.DESIGNER), getDesignerDrawings);
+
+// Expert dashboard
+router.get(
+  "/drawings/expert",
+  protect(ROLE.EXPERT, ROLE.ADMIN),
+  getDrawingsForExpert
+);
+
+// Client dashboard
+router.get("/drawings/client", protect(ROLE.CLIENT), getDrawingsForClient);
+
+// Generic drawing list
+router.get("/drawings/all", protect(), getAllDrawings);
+
+// Submissions history (sent or received)
+router.get("/drawings/submissions/history", protect(), getMySubmissions);
 
 export default router;
