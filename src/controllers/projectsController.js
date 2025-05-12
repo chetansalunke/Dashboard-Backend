@@ -1074,8 +1074,10 @@ export const clientReview = async (req, res) => {
   }
 };
 
-// get the drawings
+// get  filtered and paginated lists of drawings using multiple query parameters.
+
 export const getDesignDrawings = async (req, res) => {
+  console.log("Inside getDesignDrawings");
   try {
     const { id } = req.params;
     const {
@@ -1127,7 +1129,7 @@ export const getDesignDrawings = async (req, res) => {
       countQuery += whereClause;
     }
 
-    baseQuery += ` ORDER BY created_at DESC`;
+    baseQuery += ` ORDER BY created_date DESC`;
 
     if (!id) {
       const offset = (parseInt(page) - 1) * parseInt(limit);
@@ -1317,8 +1319,10 @@ export const getDrawingHistory = async (req, res) => {
 };
 
 // get Drawings Created by Specific Designer
-export const getDesignerDrawings = async (req, res) => {
-  const designerId = req.user.id; // Assumes `protect()` middleware sets req.user
+export const getOnlyDesigerDrawing = async (req, res) => {
+  console.log("INSIDE getOnlyDesigerDrawing");
+  const designerId = req.user.id; // Assumes protect() middleware sets req.user
+  console.log(designerId);
 
   try {
     const [rows] = await pool.query(
@@ -1337,7 +1341,7 @@ export const getDesignerDrawings = async (req, res) => {
 export const getDrawingsForExpert = async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT d.*, u.name AS designer_name 
+      `SELECT d.*, u.username AS designer_name 
        FROM design_drawing_list d 
        JOIN users u ON d.sent_by = u.id
        WHERE d.status = 'Sent to Expert' OR d.expert_status = 'Pending'

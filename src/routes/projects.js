@@ -6,7 +6,7 @@ import fs from "fs";
 import { ROLE } from "../constants/role.js";
 import {
   getDrawingsForExpert,
-  getDesignerDrawings,
+  getOnlyDesigerDrawing,
   getDrawingsForClient,
   getAllDrawings,
   getMySubmissions,
@@ -127,73 +127,54 @@ const processDesignUpload = (req, res, next) => {
   });
 };
 
-// --- Routes ---
-
-// Project management routes
+// Project management
 router.post("/add", protect(), processUpload, createProject);
 router.post("/drawingList/add", protect(), createDrawingList);
 router.post("/assignTask", protect(), processUpload, assignTask);
+router.put("/assignTask/:taskId/status", updateTaskStatus);
+router.get("/assigned-tasks/:userId", getAssignedTaskByUser);
 router.post("/createTeam", protect(), createTeam);
 router.get("/:projectId/documents", getProjectDocuments);
+router.get("/client/:clientId", getProjectsByClientId);
+router.get("/assigned-projects/:userId", getAssignedProjects);
 
-// Project listing routes
-router.get("/alll", protect(ROLE.ADMIN), getAllProjects); // Admin-only route
+// Project listing
+router.get("/alll", protect(ROLE.ADMIN), getAllProjects); // Admin-only
 router.get("/all", getAllProjects);
 router.get("/:projectId", getProjectById);
 
-// Task management routes
+// Task-related
 router.get(
-  "/:projectId/assignTask",
+  "/:projectId/assignTasks",
   protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER),
   getAssignedTaskByProject
 );
-router.put("/assignTask/:taskId/status", updateTaskStatus);
 router.get(
-  "/:projectId/assignTask",
+  "/:projectId/all-tasks",
   protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER),
   getAllTaskByProjectId
 );
-router.get("/assigned-tasks/:userId", getAssignedTaskByUser);
 
-// Drawing routes
-router.get(
-  "/drawingList/:projectId",
-  protect(ROLE.ADMIN, ROLE.DESIGNER, ROLE.EXPERT),
-  getDrawingsByProjectId
-);
-// router.post("/design_drawing", processDesignUpload, createDesignDrawing);
-// router.post(
-//   "/:drawing_id/version",
-//   processDesignUpload,
-//   uploadNewDrawingVersion
-// );
-// router.get("/design_drawing/:project_id", getAllDesignDrawings);
-router.get(
-  "/drawing-list/:userId",
-  protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER, ROLE.CLIENT),
-  getDrawingListByUserId
-);
-router.put(
-  "/drawings/send/:drawingId",
-  protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER, ROLE.CLIENT),
-  sendDrawingToUser
-);
-router.get(
-  "/drawings/sent-to/:userId",
-  protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER, ROLE.CLIENT),
-  getDrawingsSentToUser
-);
-
-// Team and User routes
+// Team
 router.get(
   "/:projectId/teams",
   protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER),
   getTeamDetailsByProjectId
 );
-router.get("/assigned-projects/:userId", getAssignedProjects);
-router.get("/client/:clientId", getProjectsByClientId);
 
-// DesignDrawing New Api
+// Drawing list routes
+router.get(
+  "/drawingList/:projectId",
+  protect(ROLE.ADMIN, ROLE.DESIGNER, ROLE.EXPERT),
+  getDrawingsByProjectId
+);
+router.get(
+  "/drawing-list/:userId",
+  protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER, ROLE.CLIENT),
+  getDrawingListByUserId
+);
+
+// Design Drawing create + upload versions
 router.post(
   "/drawings/create",
   protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER),
@@ -207,52 +188,57 @@ router.post(
   uploadDrawingVersion
 );
 
-// REVIEW by expert (approve or request revision)
+// Expert Review + Client Submit + Client Review
 router.post(
   "/drawings/:id/reviewExpert",
   protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER),
   reviewDrawing
 );
-
-// SUBMIT to client
 router.post("/drawings/:id/submitClient", submitToClient);
-
-// CLIENT review of submitted drawing
 router.post("/submissions/:id/reviewClient", clientReview);
-// get drawings
-router.get(
-  "/drawings/:id?",
-  protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER),
-  getDesignDrawings
+
+// Drawing sending and retrieval
+router.put(
+  "/drawings/send/:drawingId",
+  protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER, ROLE.CLIENT),
+  sendDrawingToUser
 );
 router.get(
-  "/drawings/:id/history",
-  protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER),
-  getDrawingHistory
+  "/drawings/sent-to/:userId",
+  protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER, ROLE.CLIENT),
+  getDrawingsSentToUser
 );
+
+// Drawings by project
 router.get(
   "/:projectId/drawings",
   protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER),
   getAllDrawingsWithVersions
 );
 
-// Designer-created drawings
-router.get("/drawings/designer", protect(ROLE.DESIGNER), getDesignerDrawings);
+// Drawing history — must come before generic `/drawings/:id?`
+router.get(
+  "/drawings/:id/history",
+  protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER),
+  getDrawingHistory
+);
 
-// Expert dashboard
+// GET drawing by Designer id
+router.get("/drawings/designer", protect(ROLE.DESIGNER), getOnlyDesigerDrawing);
 router.get(
   "/drawings/expert",
   protect(ROLE.EXPERT, ROLE.ADMIN),
   getDrawingsForExpert
 );
-
-// Client dashboard
 router.get("/drawings/client", protect(ROLE.CLIENT), getDrawingsForClient);
+router.get("/drawings/all", protect(ROLE.DESIGNER), getAllDrawings);
 
-// Generic drawing list
-router.get("/drawings/all", protect(), getAllDrawings);
-
-// Submissions history (sent or received)
+// Submission history
 router.get("/drawings/submissions/history", protect(), getMySubmissions);
-
+// GET drawing (optionally by ID)
+router.get(
+  "/drawings/:id?",
+  protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER),
+  getDesignDrawings
+);
 export default router;
