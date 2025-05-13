@@ -5,6 +5,7 @@ import path from "path";
 import fs from "fs";
 import { ROLE } from "../constants/role.js";
 import {
+  updateCompletedTaskDocuments,
   getDrawingsForExpert,
   getOnlyDesigerDrawing,
   getDrawingsForClient,
@@ -148,6 +149,12 @@ router.get(
   "/:projectId/assignTasks",
   protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER),
   getAssignedTaskByProject
+);
+router.put(
+  "/assignTask/:taskId/complete-documents",
+  protect(ROLE.DESIGNER),
+  processUpload,
+  updateCompletedTaskDocuments
 );
 router.get(
   "/:projectId/all-tasks",

@@ -162,6 +162,35 @@ export const assignTask = async (req, res) => {
     res.status(500).json({ error: "Database error" });
   }
 };
+
+export const updateCompletedTaskDocuments = async (req, res) => {
+  const { taskId } = req.params;
+
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: "No documents uploaded." });
+    }
+
+    const filePaths = req.files.map((file) => file.relativePath);
+
+    // Update the JSON column with uploaded file paths
+    await pool.query(
+      `UPDATE assign_task SET completed_task_documents = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      [JSON.stringify(filePaths), taskId]
+    );
+
+    return res.status(200).json({
+      message: "Completed task documents updated successfully.",
+      files: filePaths,
+    });
+  } catch (error) {
+    console.error("Error updating completed documents:", error);
+    return res.status(500).json({
+      error: "Failed to update completed task documents. Try again later.",
+    });
+  }
+};
+
 // update task status
 export const updateTaskStatus = async (req, res) => {
   try {
