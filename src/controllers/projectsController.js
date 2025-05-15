@@ -1206,7 +1206,7 @@ export const getDesignDrawings = async (req, res) => {
   }
 };
 
-// get all drawings
+// get all drawings by projectid with version doc path
 export const getAllDrawingsWithVersions = async (req, res) => {
   try {
     const { projectId } = req.params;
@@ -1226,6 +1226,7 @@ export const getAllDrawingsWithVersions = async (req, res) => {
       SELECT 
         ddl.id AS drawing_id,
         ddl.name AS drawing_name,
+        ddl.remark ,
         ddl.discipline,
         ddl.status,
         ddl.created_date AS last_updated,
@@ -1384,18 +1385,45 @@ export const getDrawingsForExpert = async (req, res) => {
   }
 };
 
-//  get Client Dashboard (Drawings submitted by expert)
+//  get Drawing For client
 export const getDrawingsForClient = async (req, res) => {
-  const clientId = req.user.id;
+  const authenticatedClientId = req.user.id;
+  const clientId = req.params.clientId || authenticatedClientId;
 
   try {
     const [rows] = await pool.query(
-      `SELECT ds.*, ddl.name AS drawing_name, ddl.document_path, u.name AS expert_name
-       FROM drawing_submissions ds
-       JOIN design_drawing_list ddl ON ds.drawing_id = ddl.id
-       JOIN users u ON ds.submitted_by = u.id
-       WHERE ds.submitted_to = ?
-       ORDER BY ds.submitted_at DESC`,
+      `
+      SELECT 
+        ds.id AS submission_id,
+        ds.status AS submission_status,
+        ds.client_comment,
+        ds.submitted_at,
+
+        ddl.id AS drawing_id,
+        ddl.name AS drawing_name,
+        ddl.discipline,
+        ddl.remark,
+        ddl.status AS drawing_status,
+        ddl.created_date,
+
+        lv.id AS latest_version_id,
+        lv.version_number AS latest_version,
+        lv.document_path AS latest_document_path,
+        lv.uploaded_at AS latest_uploaded_at,
+        lv.comment AS latest_version_comment,
+
+        expert.username AS expert_name,
+        client.username AS client_name
+
+      FROM drawing_submissions ds
+      INNER JOIN design_drawing_list ddl ON ds.drawing_id = ddl.id
+      LEFT JOIN drawing_versions lv ON ddl.latest_version_id = lv.id
+      LEFT JOIN users expert ON ds.submitted_by = expert.id
+      LEFT JOIN users client ON ds.submitted_to = client.id
+
+      WHERE ds.submitted_to = ?
+      ORDER BY ds.submitted_at DESC
+      `,
       [clientId]
     );
 

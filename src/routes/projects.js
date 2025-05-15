@@ -216,7 +216,7 @@ router.get(
   getDrawingsSentToUser
 );
 
-// Drawings by project
+// Drawings by projectId
 router.get(
   "/:projectId/drawings",
   protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER),
@@ -237,7 +237,17 @@ router.get(
   protect(ROLE.EXPERT, ROLE.ADMIN),
   getDrawingsForExpert
 );
+
+// Only for authenticated client (uses req.user.id)
 router.get("/drawings/client", protect(ROLE.CLIENT), getDrawingsForClient);
+
+// For admin/designer to fetch drawings submitted to a specific client
+router.get(
+  "/client/:clientId/drawings",
+  protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER, ROLE.CLIENT),
+  getDrawingsForClient
+);
+
 router.get("/drawings/all", protect(ROLE.DESIGNER), getAllDrawings);
 
 // Submission history
