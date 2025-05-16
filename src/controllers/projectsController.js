@@ -743,6 +743,7 @@ export const expertReview = async (req, res) => {
         .json({ error: "Missing drawing ID, status, or reviewer ID." });
     }
 
+    // ✅ Allow only certain expert-level statuses
     const allowedStatuses = [
       "Approved by Expert",
       "Revision Required by Expert",
@@ -753,18 +754,29 @@ export const expertReview = async (req, res) => {
       });
     }
 
+    // ✅ Map to DB-allowed ENUM values for expert_status
+    let dbStatus;
+    if (status === "Approved by Client") dbStatus = "Approved";
+    else if (
+      status === "Revision Required by Client" ||
+      status === "Rejected by Client"
+    )
+      dbStatus = "Rejected";
+    else dbStatus = "Pending"; // Fallback
+
+    // ✅ Update expert_status with dbStatus
     await pool.query(
       `UPDATE design_drawing_list SET expert_status = ? WHERE id = ?`,
-      [allowedStatuses, drawing_id]
+      [dbStatus, drawing_id]
     );
 
-    // Update main drawing status
-    await pool.query(
-      `UPDATE design_drawing_list, SET status = ? WHERE id = ?`,
-      [status, drawing_id]
-    );
+    // ✅ Also update the general drawing status to full status text
+    await pool.query(`UPDATE design_drawing_list SET status = ? WHERE id = ?`, [
+      status,
+      drawing_id,
+    ]);
 
-    // Get latest version
+    // ✅ Get latest version
     const [latest] = await pool.query(
       `SELECT id FROM drawing_versions WHERE drawing_id = ? AND is_latest = 1`,
       [drawing_id]
@@ -772,6 +784,7 @@ export const expertReview = async (req, res) => {
 
     const latest_version_id = latest[0]?.id;
 
+    // ✅ If there's a comment, save it
     if (comment && latest_version_id) {
       await pool.query(
         `INSERT INTO drawing_version_comments 
@@ -780,12 +793,17 @@ export const expertReview = async (req, res) => {
         [latest_version_id, reviewer_id, comment]
       );
     }
+
+    return res.status(200).json({
+      message: `Drawing marked as '${status}' by expert.`,
+    });
   } catch (err) {
-    console.error("Review Error:", err);
-    return res.status(500).json({ error: "Failed to review drawing." });
+    console.log("Review Error:", err);
+    return res.status(500).json({ error: err });
   }
 };
 
+// SUBMIT Drawing to Client
 // SUBMIT Drawing to Client
 export const submitToClient = async (req, res) => {
   try {
@@ -808,7 +826,7 @@ export const submitToClient = async (req, res) => {
       });
     }
 
-    // Insert into submissions table
+    // ✅ Insert into submissions table
     const [result] = await pool.query(
       `INSERT INTO drawing_submissions 
         (drawing_id, submitted_by, submitted_to, status) 
@@ -818,7 +836,7 @@ export const submitToClient = async (req, res) => {
 
     const submission_id = result.insertId;
 
-    // Update drawing status
+    // ✅ Update drawing status
     await pool.query(
       `UPDATE design_drawing_list 
        SET status = 'Sent to Client', 
@@ -827,6 +845,23 @@ export const submitToClient = async (req, res) => {
        WHERE id = ?`,
       [drawing_id]
     );
+
+    // ✅ Fetch latest version of the drawing
+    const [latest] = await pool.query(
+      `SELECT id FROM drawing_versions WHERE drawing_id = ? AND is_latest = 1`,
+      [drawing_id]
+    );
+    const latest_version_id = latest[0]?.id;
+
+    // ✅ If there's a comment, insert it
+    if (comment && latest_version_id) {
+      await pool.query(
+        `INSERT INTO drawing_version_comments 
+         (drawing_version_id, commenter_id, commenter_role, comment) 
+         VALUES (?, ?, 'Expert', ?)`,
+        [latest_version_id, submitted_by, comment]
+      );
+    }
 
     return res.status(201).json({
       message: "Drawing submitted to client.",
