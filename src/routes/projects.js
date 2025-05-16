@@ -21,19 +21,18 @@ import {
   getProjectById,
   getDrawingsByProjectId,
   getAssignedTaskByProject,
-  getAllDrawingsWithVersions,
+  getAllDrawingsByProjectId,
   createDesignDrawing,
   getAssignedProjects,
   getDrawingListByUserId,
   getAssignedTaskByUser,
   getProjectsByClientId,
-  sendDrawingToUser,
   getDrawingsSentToUser,
   updateTaskStatus,
   getProjectDocuments,
   getAllProjects,
   uploadDrawingVersion,
-  reviewDrawing,
+  expertReview,
   submitToClient,
   clientReview,
   getDesignDrawings,
@@ -198,18 +197,12 @@ router.post(
 // Expert Review + Client Submit + Client Review
 router.post(
   "/drawings/:id/reviewExpert",
-  protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER),
-  reviewDrawing
+  protect(ROLE.ADMIN, ROLE.EXPERT),
+  expertReview
 );
 router.post("/drawings/:id/submitClient", submitToClient);
-router.post("/submissions/:id/reviewClient", clientReview);
+router.put("/drawings/:id/reviewClient", clientReview);
 
-// Drawing sending and retrieval
-router.put(
-  "/drawings/send/:drawingId",
-  protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER, ROLE.CLIENT),
-  sendDrawingToUser
-);
 router.get(
   "/drawings/sent-to/:userId",
   protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER, ROLE.CLIENT),
@@ -220,10 +213,10 @@ router.get(
 router.get(
   "/:projectId/drawings",
   protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER),
-  getAllDrawingsWithVersions
+  getAllDrawingsByProjectId
 );
 
-// Drawing history — must come before generic `/drawings/:id?`
+// Drawing history
 router.get(
   "/drawings/:id/history",
   protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER),
