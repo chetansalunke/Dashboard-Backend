@@ -219,7 +219,7 @@ router.get(
 // Drawing history
 router.get(
   "/drawings/:id/history",
-  protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER),
+  protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER, ROLE.CLIENT),
   getDrawingHistory
 );
 

@@ -1162,46 +1162,53 @@ export const getDrawingsForClient = async (req, res) => {
   try {
     const [rows] = await pool.query(
       `
-      SELECT 
-        ds.id AS submission_id,
-        ds.status AS submission_status,
-        ds.client_comment,
-        ds.submitted_at,
+  SELECT 
+    ds.id AS submission_id,
+    ds.status AS submission_status,
+    ds.client_comment,
+    ds.submitted_at,
 
-        ddl.id AS drawing_id,
-        ddl.name AS drawing_name,
-        ddl.discipline,
-        ddl.remark,
-        ddl.status AS drawing_status,
-        ddl.created_date,
+    ddl.id AS drawing_id,
+    ddl.name AS drawing_name,
+    ddl.discipline,
+    ddl.remark,
+    ddl.status AS drawing_status,
+    ddl.created_date,
 
-        lv.id AS latest_version_id,
-        lv.version_number AS latest_version,
-        lv.document_path AS latest_document_path,
-        lv.uploaded_at AS latest_uploaded_at,
-        lv.comment AS latest_version_comment,
+    lv.id AS latest_version_id,
+    lv.version_number AS latest_version,
+    lv.document_path AS latest_document_path,
+    lv.uploaded_at AS latest_uploaded_at,
 
-        expert.username AS expert_name,
-        client.username AS client_name
+    (
+      SELECT dvc.comment
+      FROM drawing_version_comments dvc
+      WHERE dvc.drawing_version_id = lv.id
+      ORDER BY dvc.id DESC
+      LIMIT 1
+    ) AS latest_version_comment,
 
-      FROM drawing_submissions ds
-      INNER JOIN design_drawing_list ddl ON ds.drawing_id = ddl.id
-      LEFT JOIN drawing_versions lv ON ddl.latest_version_id = lv.id
-      LEFT JOIN users expert ON ds.submitted_by = expert.id
-      LEFT JOIN users client ON ds.submitted_to = client.id
+    expert.username AS expert_name,
+    client.username AS client_name,
 
-      WHERE ds.submitted_to = ?
-      ORDER BY ds.submitted_at DESC
-      `,
+    p.projectName AS project_name
+
+  FROM drawing_submissions ds
+  INNER JOIN design_drawing_list ddl ON ds.drawing_id = ddl.id
+  LEFT JOIN drawing_versions lv ON ddl.latest_version_id = lv.id
+  LEFT JOIN users expert ON ds.submitted_by = expert.id
+  LEFT JOIN users client ON ds.submitted_to = client.id
+  LEFT JOIN projects p ON ddl.project_id = p.id  
+  WHERE ds.submitted_to = ?
+  ORDER BY ds.submitted_at DESC
+  `,
       [clientId]
     );
 
     return res.status(200).json({ submissions: rows });
   } catch (err) {
     console.error("Client Dashboard Error:", err);
-    return res
-      .status(500)
-      .json({ error: "Failed to fetch submitted drawings." });
+    return res.status(500).json({ error: err });
   }
 };
 
