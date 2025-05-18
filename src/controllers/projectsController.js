@@ -31,6 +31,16 @@ export const createProject = async (req, res) => {
     const creation_date = new Date();
     const status = "Pending";
 
+    const parsedConsultantId =
+      consultantId === null ||
+      consultantId === undefined ||
+      consultantId === "null"
+        ? null
+        : parseInt(consultantId);
+    if (!userId || !clientId || isNaN(parseInt(userId))) {
+      return res.status(400).json({ error: "Valid User ID is required" });
+    }
+
     if (!userId || !clientId || isNaN(parseInt(userId))) {
       return res.status(400).json({ error: "Valid User ID is required" });
     }
@@ -51,7 +61,7 @@ export const createProject = async (req, res) => {
         creation_date,
         parseInt(userId),
         clientId || null,
-        consultantId || null,
+        parsedConsultantId,
         site_address || null,
         startDate || null,
         completionDate || null,
