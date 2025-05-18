@@ -1,5 +1,5 @@
 // src/controllers/projectsController.js
-import { console } from "inspector/promises";
+
 import pool from "../config/db.js";
 import path from "path";
 // create project
