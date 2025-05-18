@@ -31,7 +31,7 @@ export const createProject = async (req, res) => {
     const creation_date = new Date();
     const status = "Pending";
 
-    if (!userId || !clientId || !consultantId || isNaN(parseInt(userId))) {
+    if (!userId || !clientId || isNaN(parseInt(userId))) {
       return res.status(400).json({ error: "Valid User ID is required" });
     }
 
@@ -50,8 +50,8 @@ export const createProject = async (req, res) => {
         pendingForm || null,
         creation_date,
         parseInt(userId),
-        clientId || null,
-        consultantId || null,
+        clientId ? parseInt(clientId) : null,
+        consultantId ? parseInt(consultantId) : null,
         site_address || null,
         startDate || null,
         completionDate || null,
@@ -66,7 +66,7 @@ export const createProject = async (req, res) => {
     });
   } catch (error) {
     console.error("Error creating project:", error);
-    res.status(500).json({ error: "Database error" });
+    res.status(500).json({ message: "Database error", error: error.message });
   }
 };
 
@@ -510,7 +510,7 @@ export const getTeamDetailsByProjectId = async (req, res) => {
 
   try {
     const [rows] = await pool.query(
-      `select users.username,users.role,users.email,users.phone_number,users.status,projects.projectName from teams join projects on teams.project_id = projects.id join users on teams.user_id=users.id where teams.project_id = ?
+      `select users.id ,users.username,users.role,users.email,users.phone_number,users.status,projects.projectName from teams join projects on teams.project_id = projects.id join users on teams.user_id=users.id where teams.project_id = ?
 `,
       [projectId]
     );
