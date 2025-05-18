@@ -50,8 +50,8 @@ export const createProject = async (req, res) => {
         pendingForm || null,
         creation_date,
         parseInt(userId),
-        clientId ? parseInt(clientId) : null,
-        consultantId ? parseInt(consultantId) : null,
+        clientId || null,
+        consultantId || null,
         site_address || null,
         startDate || null,
         completionDate || null,
@@ -66,10 +66,9 @@ export const createProject = async (req, res) => {
     });
   } catch (error) {
     console.error("Error creating project:", error);
-    res.status(500).json({ message: "Database error", error: error.message });
+    res.status(500).json({ error: "Database error" });
   }
 };
-
 export const createDrawingList = async (req, res) => {
   try {
     const {
