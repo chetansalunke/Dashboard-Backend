@@ -18,14 +18,16 @@ const app = express();
 const BASE_UPLOAD_PATH = process.env.UPLOAD_PATH || "uploads";
 const BASE_RFI_PATH = process.env.RFI_PATH || "rfi";
 const DESIGN_DRAWING_FOLDER = "design_drawing";
+const CHANGE_ORDER_FOLDER = "change_order";
 
 // Define upload directories with absolute paths for internal server use
 const uploadsDir = path.join(process.cwd(), BASE_UPLOAD_PATH);
 const rfiDir = path.join(process.cwd(), BASE_RFI_PATH);
 const designDrawingDir = path.join(uploadsDir, DESIGN_DRAWING_FOLDER);
+const changeOrderDir = path.join(process.cwd(), CHANGE_ORDER_FOLDER);
 
 // Ensure directories exist
-[uploadsDir, rfiDir, designDrawingDir].forEach((dir) => {
+[uploadsDir, rfiDir, designDrawingDir, changeOrderDir].forEach((dir) => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
@@ -71,6 +73,7 @@ app.use(
   })
 );
 app.use(`/${BASE_RFI_PATH}`, express.static(rfiDir));
+app.use(`/${BASE_RFI_PATH}`, express.static(changeOrderDir));
 
 // Add file download endpoint with proper path resolution
 app.get("/download/:folder/:filename", (req, res) => {

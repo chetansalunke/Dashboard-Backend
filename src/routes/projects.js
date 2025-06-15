@@ -5,6 +5,7 @@ import path from "path";
 import fs from "fs";
 import { ROLE } from "../constants/role.js";
 import {
+  getClientInfoByProjectId,
   updateCompletedTaskDocuments,
   getDrawingsForExpert,
   getOnlyDesigerDrawing,
@@ -63,6 +64,7 @@ const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, uploadsPath);
   },
+  limits: { fileSize: 500 * 1024 * 1024 }, // 500 mb
   filename: (req, file, cb) => {
     cb(null, `${Date.now()}-${file.originalname}`);
   },
@@ -73,6 +75,7 @@ const designDrawingStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, designDrawingPath);
   },
+  limits: { fileSize: 500 * 1024 * 1024 }, // 500 mb
   filename: (req, file, cb) => {
     cb(null, `${Date.now()}-${file.originalname}`);
   },
@@ -137,7 +140,11 @@ router.post("/createTeam", protect(), createTeam);
 router.get("/:projectId/documents", getProjectDocuments);
 router.get("/client/:clientId", getProjectsByClientId);
 router.get("/assigned-projects/:userId", getAssignedProjects);
-
+router.get(
+  "/client-info/:projectId",
+  protect(ROLE.ADMIN, ROLE.EXPERT),
+  getClientInfoByProjectId
+);
 // Project listing
 router.get("/alll", protect(ROLE.ADMIN), getAllProjects); // Admin-only
 router.get("/all", getAllProjects);

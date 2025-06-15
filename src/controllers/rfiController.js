@@ -1,35 +1,72 @@
 import pool from "../config/db.js";
 import path from "path";
 export const createRfi = async (req, res) => {
-  const { title, details, priority, project_id, status, created_by, send_to } =
-    req.body;
-
-  const documentPath = req.files
-    ? req.files.map((file) => path.relative(process.cwd(), file.path)).join(",")
-    : null;
-
-  const created_at = new Date();
-
-  const [result] = await pool.query(
-    `INSERT INTO rfi (title, details, document_upload, priority, status, project_id, created_by, created_at,send_to) VALUES (?, ?, ?, ?, ?, ?, ?, ?,?)`,
-    [
-      title || null,
-      details || null,
-      documentPath,
+  try {
+    const {
+      title,
+      details,
       priority,
-      status,
       project_id,
+      status,
       created_by,
-      created_at,
       send_to,
-    ]
-  );
+    } = req.body;
 
-  res.status(201).json({
-    message: "Rfi Created Successfully",
-    rfi_id: result.insertId,
-    documents: documentPath,
-  });
+    // Validate required fields
+    if (!project_id || !created_by) {
+      return res
+        .status(400)
+        .json({ message: "Missing required fields: project_id or created_by" });
+    }
+
+    // Validate priority - assume it should be 'LOW', 'MEDIUM', or 'HIGH'
+    const allowedPriorities = ["Low", "Medium", "High"];
+    const validatedPriority = allowedPriorities.includes(priority)
+      ? priority
+      : null;
+
+    if (!validatedPriority) {
+      return res.status(400).json({
+        message: "Invalid or missing priority. Allowed: LOW, MEDIUM, HIGH",
+      });
+    }
+
+    const documentPath = req.files
+      ? req.files
+          .map((file) => path.relative(process.cwd(), file.path))
+          .join(",")
+      : "";
+
+    const created_at = new Date();
+
+    const [result] = await pool.query(
+      `INSERT INTO rfi (title, details, document_upload, priority, status, project_id, created_by, created_at, send_to)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        title || null,
+        details || null,
+        documentPath,
+        validatedPriority,
+        status || "Pending",
+        project_id,
+        created_by,
+        created_at,
+        send_to || null,
+      ]
+    );
+
+    res.status(201).json({
+      message: "RFI Created Successfully",
+      rfi_id: result.insertId,
+      documents: documentPath,
+    });
+  } catch (error) {
+    console.error("Error creating RFI:", error);
+    res.status(500).json({
+      message: "Failed to create RFI",
+      error: error.message,
+    });
+  }
 };
 
 export const getAllRfis = async (req, res) => {
@@ -197,6 +234,10 @@ export const clientResolveRfi = async (req, res) => {
 
 export const getRfisSentToClient = async (req, res) => {
   const { user_id } = req.params;
+  const user = req.user;
+  console.log("From get rfi send to client");
+  console.log(user.id);
+
   try {
     const [results] = await pool.query(
       "SELECT * FROM rfi WHERE send_to = ? OR sent_to_client = ?",
@@ -206,5 +247,207 @@ export const getRfisSentToClient = async (req, res) => {
   } catch (error) {
     console.error("Error fetching user RFIs:", error);
     res.status(500).json({ message: "Error fetching RFIs for user" });
+  }
+};
+// change order controller
+
+export const createChangeOrder = async (req, res) => {
+  try {
+    const {
+      change_request_number,
+      project_id,
+      date,
+      requester,
+      mode_of_communication,
+      description_of_change,
+      details_of_change,
+      location_of_change,
+      change_component,
+      area,
+      reason_for_change,
+      proof_of_instruction,
+      document_option,
+      send_to,
+    } = req.body;
+
+    if (!project_id || !requester) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    const documentPath = req.files
+      ? req.files
+          .map((file) => path.relative(process.cwd(), file.path))
+          .join(",")
+      : "";
+
+    const created_at = new Date();
+
+    const [result] = await pool.query(
+      `INSERT INTO change_orders 
+      (change_request_number, project_id, date, requester, mode_of_communication, 
+       description_of_change, details_of_change, location_of_change, change_component, 
+       area, reason_for_change, proof_of_instruction, document_option, document_upload, 
+       status, send_to, created_at) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        change_request_number,
+        project_id,
+        date,
+        requester,
+        mode_of_communication,
+        description_of_change,
+        details_of_change,
+        location_of_change,
+        change_component,
+        area,
+        reason_for_change,
+        proof_of_instruction,
+        document_option,
+        documentPath,
+        "Pending",
+        send_to,
+        created_at,
+      ]
+    );
+
+    res.status(201).json({
+      message: "Change Order Created",
+      id: result.insertId,
+      documents: documentPath,
+    });
+  } catch (error) {
+    console.error("Error creating Change Order:", error);
+    res.status(500).json({ message: "Creation failed", error: error.message });
+  }
+};
+
+// 2. Get All Change Orders
+export const getAllChangeOrders = async (req, res) => {
+  try {
+    const [results] = await pool.query("SELECT * FROM change_orders");
+    res.status(200).json(results);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Failed to fetch change orders" });
+  }
+};
+
+// 3. Resolve Change Order (Expert/Admin/Client)
+export const resolveChangeOrder = async (req, res) => {
+  const { id } = req.params;
+  const { resolution_details, resolved_by, status } = req.body;
+
+  try {
+    // Ensure change order exists
+    const [existing] = await pool.query(
+      `SELECT * FROM change_orders WHERE id = ?`,
+      [id]
+    );
+    if (existing.length === 0) {
+      return res.status(404).json({ message: "Change order not found" });
+    }
+
+    // Process uploaded files
+    const resolutionDocs =
+      req.files?.map((file) =>
+        path.relative(process.cwd(), file.path).replace(/\\/g, "/")
+      ) || [];
+
+    const resolutionDocsString = resolutionDocs.join(",");
+    const resolved_at = new Date();
+
+    // Update change order
+    await pool.query(
+      `UPDATE change_orders
+       SET resolution_details = ?, resolved_by = ?, resolved_at = ?, status = ?, resolution_documents = ?
+       WHERE id = ?`,
+      [
+        resolution_details,
+        resolved_by,
+        resolved_at,
+        status || "Resolved",
+        resolutionDocsString,
+        id,
+      ]
+    );
+
+    res.status(200).json({
+      message: "Change order resolved successfully",
+      resolution_documents: resolutionDocs,
+    });
+  } catch (error) {
+    console.error("Failed to resolve change order:", error);
+    res.status(500).json({ message: "Failed to resolve change order" });
+  }
+};
+
+// 4. Forward to Client
+export const forwardChangeOrderToClient = async (req, res) => {
+  const { clientId, orderId } = req.body;
+  const user = req.user;
+
+  if (!["admin", "expert"].includes(user.role)) {
+    return res.status(403).json({ message: "Unauthorized" });
+  }
+
+  try {
+    await pool.query(
+      `UPDATE change_orders SET sent_to_client=?, status='Sent to Client' WHERE id=?`,
+      [clientId, orderId]
+    );
+
+    res
+      .status(200)
+      .json({ message: `Change order sent to client ${clientId}` });
+  } catch (error) {
+    console.error("Forward error:", error);
+    res.status(500).json({ message: "Forwarding failed" });
+  }
+};
+
+// 5. Get Orders Sent to a User
+export const getChangeOrdersSentToUser = async (req, res) => {
+  const { user_id } = req.params;
+
+  try {
+    const [results] = await pool.query(
+      "SELECT * FROM change_orders WHERE send_to=? OR sent_to_client=?",
+      [user_id, user_id]
+    );
+    res.status(200).json(results);
+  } catch (error) {
+    console.error("Fetch error:", error);
+    res.status(500).json({ message: "Failed to retrieve change orders" });
+  }
+};
+export const getChangeOrdersByProjectAndUser = async (req, res) => {
+  const { project_id, user_id } = req.params;
+
+  try {
+    // Get the user's role (ensure req.user is populated via protect middleware)
+    const user = req.user;
+    const role = user.role;
+
+    let query = "";
+    let values = [];
+
+    if (role === "designer") {
+      query = `SELECT * FROM change_orders WHERE project_id = ? AND requester = ?`;
+      values = [project_id, user_id];
+    } else if (role === "client") {
+      query = `SELECT * FROM change_orders WHERE project_id = ? AND (send_to = ? OR sent_to_client = ?)`;
+      values = [project_id, user_id, user_id];
+    } else if (role === "expert" || role === "admin") {
+      query = `SELECT * FROM change_orders WHERE project_id = ? AND resolved_by = ?`;
+      values = [project_id, user_id];
+    } else {
+      return res.status(403).json({ message: "Unauthorized role" });
+    }
+
+    const [results] = await pool.query(query, values);
+    res.status(200).json(results);
+  } catch (error) {
+    console.error("Error fetching change orders by project/user:", error);
+    res.status(500).json({ message: "Failed to fetch change orders" });
   }
 };

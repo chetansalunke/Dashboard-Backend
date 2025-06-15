@@ -1363,3 +1363,35 @@ export const getDesignDrawings = async (req, res) => {
     });
   }
 };
+
+export const getClientInfoByProjectId = async (req, res) => {
+  const { projectId } = req.params;
+
+  try {
+    const [rows] = await pool.query(
+      `
+      SELECT 
+        users.id,
+        users.username,
+        users.email,
+        users.phone_number,
+        users.role
+      FROM projects
+      JOIN users ON projects.client_id = users.id
+      WHERE projects.id = ?
+      `,
+      [projectId]
+    );
+
+    if (rows.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "Client not found for this project." });
+    }
+
+    res.status(200).json(rows[0]); // Return single client info
+  } catch (err) {
+    console.error("Error fetching client info by project ID:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
