@@ -420,34 +420,16 @@ export const getChangeOrdersSentToUser = async (req, res) => {
     res.status(500).json({ message: "Failed to retrieve change orders" });
   }
 };
-export const getChangeOrdersByProjectAndUser = async (req, res) => {
-  const { project_id, user_id } = req.params;
+export const getChangeOrdersByProjectId = async (req, res) => {
+  const { project_id } = req.params;
 
   try {
-    // Get the user's role (ensure req.user is populated via protect middleware)
-    const user = req.user;
-    const role = user.role;
+    const query = `SELECT * FROM change_orders WHERE project_id = ?`;
+    const [results] = await pool.query(query, [project_id]);
 
-    let query = "";
-    let values = [];
-
-    if (role === "designer") {
-      query = `SELECT * FROM change_orders WHERE project_id = ? AND requester = ?`;
-      values = [project_id, user_id];
-    } else if (role === "client") {
-      query = `SELECT * FROM change_orders WHERE project_id = ? AND (send_to = ? OR sent_to_client = ?)`;
-      values = [project_id, user_id, user_id];
-    } else if (role === "expert" || role === "admin") {
-      query = `SELECT * FROM change_orders WHERE project_id = ? AND resolved_by = ?`;
-      values = [project_id, user_id];
-    } else {
-      return res.status(403).json({ message: "Unauthorized role" });
-    }
-
-    const [results] = await pool.query(query, values);
     res.status(200).json(results);
   } catch (error) {
-    console.error("Error fetching change orders by project/user:", error);
+    console.error("Error fetching change orders by project:", error);
     res.status(500).json({ message: "Failed to fetch change orders" });
   }
 };
