@@ -437,8 +437,11 @@ export const getChangeOrdersSentToClient = async (req, res) => {
   const { user_id } = req.params;
 
   try {
-    const query = `SELECT * FROM change_orders WHERE sent_to_client = ?`;
-    const [results] = await pool.query(query, [user_id]);
+    const query = `
+      SELECT * FROM change_orders 
+      WHERE sent_to_client = ? OR send_to = ?
+    `;
+    const [results] = await pool.query(query, [user_id, user_id]);
 
     res.status(200).json(results);
   } catch (error) {
