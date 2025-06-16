@@ -433,3 +433,18 @@ export const getChangeOrdersByProjectId = async (req, res) => {
     res.status(500).json({ message: "Failed to fetch change orders" });
   }
 };
+export const getChangeOrdersSentToClient = async (req, res) => {
+  const { user_id } = req.params;
+
+  try {
+    const query = `SELECT * FROM change_orders WHERE sent_to_client = ?`;
+    const [results] = await pool.query(query, [user_id]);
+
+    res.status(200).json(results);
+  } catch (error) {
+    console.error("Error fetching change orders sent to client:", error);
+    res
+      .status(500)
+      .json({ message: "Failed to fetch change orders for client" });
+  }
+};
