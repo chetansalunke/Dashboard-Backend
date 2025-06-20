@@ -94,7 +94,7 @@ router.post(
 router.get("/co/sent-to/:user_id", getChangeOrdersSentToUser);
 router.get(
   "/co/project/:project_id",
-  protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.CLIENT), // This ensures req.user is populated
+  protect(ROLE.ADMIN, ROLE.DESIGNER, ROLE.EXPERT, ROLE.CLIENT), // This ensures req.user is populated
   getChangeOrdersByProjectId
 );
 

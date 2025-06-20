@@ -240,7 +240,7 @@ export const getRfisSentToClient = async (req, res) => {
 
   try {
     const [results] = await pool.query(
-      "SELECT * FROM rfi WHERE send_to = ? OR sent_to_client = ?",
+      "SELECT * FROM rfi WHERE send_to = ? ",
       [user_id, user_id]
     );
     res.status(200).json(results);
