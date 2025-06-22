@@ -17,6 +17,7 @@ import {
   forwardChangeOrderToClient,
   getChangeOrdersSentToUser,
   getChangeOrdersByProjectId,
+  getChangeOrdersSentToClient,
 } from "../controllers/rfiController.js";
 
 const storage = multer.diskStorage({
@@ -95,7 +96,13 @@ router.get("/co/sent-to/:user_id", getChangeOrdersSentToUser);
 router.get(
   "/co/project/:project_id",
   protect(ROLE.ADMIN, ROLE.DESIGNER, ROLE.EXPERT, ROLE.CLIENT), // This ensures req.user is populated
+ 
   getChangeOrdersByProjectId
+);
+router.get(
+  "/co/sent-to-client/:user_id",
+  protect(ROLE.CLIENT), // restrict to clients only
+  getChangeOrdersSentToClient
 );
 
 export default router;
