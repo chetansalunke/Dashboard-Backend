@@ -79,6 +79,88 @@ export const createProject = async (req, res) => {
     res.status(500).json({ error: "Database error" });
   }
 };
+
+export const updateProject = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id || isNaN(parseInt(id))) {
+      return res.status(400).json({ error: "Valid Project ID is required" });
+    }
+
+    const {
+      projectName,
+      site_address,
+      description,
+      duration,
+      startDate,
+      completionDate,
+      projectSize,
+      pendingForm,
+      clientId,
+      consultantId,
+      assignTo,
+      status,
+    } = req.body;
+
+    const documentPaths = req.files?.length
+      ? req.files.map((file) => file.relativePath).join(",")
+      : null;
+
+    const fieldsToUpdate = {};
+
+    if (projectName !== undefined) fieldsToUpdate.projectName = projectName;
+    if (site_address !== undefined) fieldsToUpdate.site_address = site_address;
+    if (description !== undefined) fieldsToUpdate.description = description;
+    if (duration !== undefined) fieldsToUpdate.duration = duration;
+    if (startDate !== undefined) fieldsToUpdate.project_start_date = startDate;
+    if (completionDate !== undefined) fieldsToUpdate.project_completion_date = completionDate;
+    if (projectSize !== undefined) fieldsToUpdate.projectSize = projectSize;
+    if (pendingForm !== undefined) fieldsToUpdate.pendingForm = pendingForm;
+    if (clientId !== undefined) fieldsToUpdate.client_id = clientId;
+    if (consultantId !== undefined)
+      fieldsToUpdate.consultant_id =
+        consultantId === "null" || consultantId === null
+          ? null
+          : parseInt(consultantId);
+    if (assignTo !== undefined) fieldsToUpdate.assignTo = assignTo;
+    if (status !== undefined) fieldsToUpdate.status = status;
+    if (documentPaths) fieldsToUpdate.document_upload = documentPaths;
+
+    if (Object.keys(fieldsToUpdate).length === 0) {
+      return res.status(400).json({ error: "No valid fields provided to update" });
+    }
+
+    const updateQuery = `
+      UPDATE projects
+      SET ${Object.keys(fieldsToUpdate)
+        .map((key) => `${key} = ?`)
+        .join(", ")}
+      WHERE id = ?
+    `;
+
+    const values = [...Object.values(fieldsToUpdate), id];
+
+    const [result] = await pool.query(updateQuery, values);
+
+    res.status(200).json({
+      message: "Project updated successfully",
+      updatedFields: fieldsToUpdate,
+    });
+  } catch (error) {
+    console.error("Error updating project:", error);
+    res.status(500).json({ error: "Database error" });
+  }
+};
+
+
+
+
+
+
+
+
+
 export const createDrawingList = async (req, res) => {
   try {
     const {

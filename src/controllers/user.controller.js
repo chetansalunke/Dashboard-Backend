@@ -48,3 +48,39 @@ export const getUserById = async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 };
+
+export const patchUser = async (req, res) => {
+  const { id } = req.body;
+
+  if (!id) {
+    return res.status(400).json({ error: "User ID is required for update" });
+  }
+
+  const allowedFields = ["username", "email", "role", "phone_number", "status"];
+  const fieldsToUpdate = [];
+  const values = [];
+
+  for (const field of allowedFields) {
+    if (req.body[field] !== undefined) {
+      fieldsToUpdate.push(`${field} = ?`);
+      values.push(req.body[field]);
+    }
+  }
+
+  if (fieldsToUpdate.length === 0) {
+    return res.status(400).json({ error: "No valid fields provided for update" });
+  }
+
+  values.push(id); // Add user ID at the end for WHERE clause
+
+  const query = `UPDATE users SET ${fieldsToUpdate.join(", ")} WHERE id = ?`;
+
+  try {
+    await pool.query(query, values);
+    res.status(200).json({ message: "User updated successfully" });
+  } catch (err) {
+    console.error("User patch error:", err);
+    res.status(500).json({ error: "Database error during user update" });
+  }
+};
+

@@ -37,6 +37,7 @@ import {
   submitToClient,
   clientReview,
   getDesignDrawings,
+  updateProject,
 } from "../controllers/projectsController.js";
 import protect from "../middlewares/authMiddleware.js";
 
@@ -142,7 +143,7 @@ router.get("/client/:clientId", getProjectsByClientId);
 router.get("/assigned-projects/:userId", getAssignedProjects);
 router.get(
   "/client-info/:projectId",
-  protect(ROLE.ADMIN, ROLE.EXPERT),
+  protect(ROLE.ADMIN,ROLE.DESIGNER, ROLE.EXPERT),
   getClientInfoByProjectId
 );
 // Project listing
@@ -258,4 +259,9 @@ router.get(
   protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER),
   getDesignDrawings
 );
+
+// router.put("/update/:id", protect(), processUpload, updateProject);
+router.put("/update/:id", protect(ROLE.ADMIN), processUpload, updateProject);
+
+
 export default router;
