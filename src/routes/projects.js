@@ -14,18 +14,18 @@ import {
   getMySubmissions,
   createProject,
   getDrawingHistory,
-  createDrawingList,
+  createDeliverableList,
   assignTask,
   createTeam,
   getAllTaskByProjectId,
   getTeamDetailsByProjectId,
   getProjectById,
-  getDrawingsByProjectId,
+  getDeliverablesByProjectId,
   getAssignedTaskByProject,
   getAllDrawingsByProjectId,
   createDesignDrawing,
   getAssignedProjects,
-  getDrawingListByUserId,
+  getDeliverableListByUserId,
   getAssignedTaskByUser,
   getProjectsByClientId,
   getDrawingsSentToUser,
@@ -133,7 +133,7 @@ const processDesignUpload = (req, res, next) => {
 
 // Project management
 router.post("/add", protect(), processUpload, createProject);
-router.post("/drawingList/add", protect(), createDrawingList);
+router.post("/drawingList/add", protect(), createDeliverableList);
 router.post("/assignTask", protect(), processUpload, assignTask);
 router.put("/assignTask/:taskId/status", updateTaskStatus);
 router.get("/assigned-tasks/:userId", getAssignedTaskByUser);
@@ -143,7 +143,7 @@ router.get("/client/:clientId", getProjectsByClientId);
 router.get("/assigned-projects/:userId", getAssignedProjects);
 router.get(
   "/client-info/:projectId",
-  protect(ROLE.ADMIN,ROLE.DESIGNER, ROLE.EXPERT),
+  protect(ROLE.ADMIN, ROLE.DESIGNER, ROLE.EXPERT),
   getClientInfoByProjectId
 );
 // Project listing
@@ -180,12 +180,12 @@ router.get(
 router.get(
   "/drawingList/:projectId",
   protect(ROLE.ADMIN, ROLE.DESIGNER, ROLE.EXPERT),
-  getDrawingsByProjectId
+  getDeliverablesByProjectId
 );
 router.get(
   "/drawing-list/:userId",
   protect(ROLE.ADMIN, ROLE.EXPERT, ROLE.DESIGNER, ROLE.CLIENT),
-  getDrawingListByUserId
+  getDeliverableListByUserId
 );
 
 // Design Drawing create + upload versions
@@ -262,6 +262,5 @@ router.get(
 
 // router.put("/update/:id", protect(), processUpload, updateProject);
 router.put("/update/:id", protect(ROLE.ADMIN), processUpload, updateProject);
-
 
 export default router;

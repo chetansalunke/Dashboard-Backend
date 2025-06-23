@@ -1,5 +1,4 @@
 // src/controllers/projectsController.js
-
 import pool from "../config/db.js";
 import path from "path";
 // create project
@@ -114,7 +113,8 @@ export const updateProject = async (req, res) => {
     if (description !== undefined) fieldsToUpdate.description = description;
     if (duration !== undefined) fieldsToUpdate.duration = duration;
     if (startDate !== undefined) fieldsToUpdate.project_start_date = startDate;
-    if (completionDate !== undefined) fieldsToUpdate.project_completion_date = completionDate;
+    if (completionDate !== undefined)
+      fieldsToUpdate.project_completion_date = completionDate;
     if (projectSize !== undefined) fieldsToUpdate.projectSize = projectSize;
     if (pendingForm !== undefined) fieldsToUpdate.pendingForm = pendingForm;
     if (clientId !== undefined) fieldsToUpdate.client_id = clientId;
@@ -128,7 +128,9 @@ export const updateProject = async (req, res) => {
     if (documentPaths) fieldsToUpdate.document_upload = documentPaths;
 
     if (Object.keys(fieldsToUpdate).length === 0) {
-      return res.status(400).json({ error: "No valid fields provided to update" });
+      return res
+        .status(400)
+        .json({ error: "No valid fields provided to update" });
     }
 
     const updateQuery = `
@@ -153,15 +155,8 @@ export const updateProject = async (req, res) => {
   }
 };
 
-
-
-
-
-
-
-
-
-export const createDrawingList = async (req, res) => {
+// Updated table name from drawing_list to deliverable_list
+export const createDeliverableList = async (req, res) => {
   try {
     const {
       drawingNumber,
@@ -172,7 +167,7 @@ export const createDrawingList = async (req, res) => {
       projectId,
     } = req.body;
 
-    // ✅ Validate required fields
+    // Validate required fields
     if (!drawingNumber || !drawingName || !projectId) {
       return res.status(400).json({
         error:
@@ -181,7 +176,7 @@ export const createDrawingList = async (req, res) => {
     }
 
     const [result] = await pool.query(
-      `INSERT INTO gigfactorydb.drawing_list
+      `INSERT INTO gigfactorydb.deliverable_list
         (drawing_number, drawing_name, start_date, end_date, assign_to, project_id)
         VALUES (?, ?, ?, ?, ?, ?)`,
       [
@@ -195,11 +190,11 @@ export const createDrawingList = async (req, res) => {
     );
 
     res.status(201).json({
-      message: "Drawing List created successfully",
+      message: "Deliverable List created successfully",
       drawingId: result.insertId,
     });
   } catch (error) {
-    console.error("Error creating project:", error);
+    console.error("Error creating deliverable list:", error);
     res.status(500).json({ error: "Database error" });
   }
 };
@@ -322,7 +317,7 @@ export const updateTaskStatus = async (req, res) => {
   }
 };
 
-export const getDrawingListByUserId = async (req, res) => {
+export const getDeliverableListByUserId = async (req, res) => {
   const { userId } = req.params;
 
   if (!userId) {
@@ -331,19 +326,19 @@ export const getDrawingListByUserId = async (req, res) => {
 
   try {
     const [rows] = await pool.query(
-      `SELECT * FROM gigfactorydb.drawing_list WHERE assign_to = ?`,
+      `SELECT * FROM gigfactorydb.deliverable_list WHERE assign_to = ?`,
       [userId]
     );
 
     if (rows.length === 0) {
       return res
         .status(404)
-        .json({ message: "No drawing list items assigned to this user." });
+        .json({ message: "No deliverable list items assigned to this user." });
     }
 
-    res.status(200).json({ drawingList: rows });
+    res.status(200).json({ deliverableList: rows });
   } catch (error) {
-    console.error("Error fetching drawing list by user ID:", error);
+    console.error("Error fetching deliverable list by user ID:", error);
     res.status(500).json({ error: "Database error" });
   }
 };
@@ -470,33 +465,33 @@ export const getProjectById = async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 };
-export const getDrawingsByProjectId = async (req, res) => {
+export const getDeliverablesByProjectId = async (req, res) => {
   const { projectId } = req.params;
 
   try {
     const [rows] = await pool.query(
-      `SELECT * FROM drawing_list WHERE project_id = ?`,
+      `SELECT * FROM deliverable_list WHERE project_id = ?`,
       [projectId]
     );
 
     if (rows.length === 0) {
       return res
         .status(404)
-        .json({ error: "No drawings found for this project" });
+        .json({ error: "No deliverables found for this project" });
     }
 
     const baseUrl = `${req.protocol}://${req.get("host")}/`;
 
-    const drawings = rows.map((drawing) => ({
-      ...drawing,
-      file_url: drawing.file_path
-        ? `${baseUrl}${drawing.file_path.trim()}`
+    const deliverables = rows.map((deliverable) => ({
+      ...deliverable,
+      file_url: deliverable.file_path
+        ? `${baseUrl}${deliverable.file_path.trim()}`
         : null,
     }));
 
-    res.status(200).json({ drawings });
+    res.status(200).json({ deliverables });
   } catch (error) {
-    console.error("Error fetching drawings:", error);
+    console.error("Error fetching deliverables:", error);
     res.status(500).json({ error: "Server error" });
   }
 };
