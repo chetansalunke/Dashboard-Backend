@@ -243,6 +243,7 @@ export const assignTask = async (req, res) => {
       checklist,
       assignTo,
       projectId,
+      deliverableId, // Added deliverableId field
     } = req.body;
 
     // Handle uploaded files (e.g., from multer)
@@ -259,8 +260,8 @@ export const assignTask = async (req, res) => {
 
     const [result] = await pool.query(
       `INSERT INTO gigfactorydb.assign_task
-        (task_name, priority, start_date, due_date, assign_to, checklist, project_id, assign_task_document)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        (task_name, priority, start_date, due_date, assign_to, checklist, project_id, assign_task_document, deliverable_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         taskName || null,
         priority || "Medium",
@@ -270,6 +271,7 @@ export const assignTask = async (req, res) => {
         checklistJson,
         projectId || null,
         documentPaths,
+        deliverableId || null, // Added deliverableId to query
       ]
     );
 
@@ -1503,5 +1505,32 @@ export const getClientInfoByProjectId = async (req, res) => {
   } catch (err) {
     console.error("Error fetching client info by project ID:", err);
     res.status(500).json({ message: "Server error" });
+  }
+};
+
+// New API to fetch deliverables for a specific project ID
+export const getDeliverableByProjectId = async (req, res) => {
+  const { projectId } = req.params;
+
+  if (!projectId) {
+    return res.status(400).json({ error: "Project ID is required" });
+  }
+
+  try {
+    const [rows] = await pool.query(
+      `SELECT * FROM deliverable_list WHERE project_id = ?`,
+      [projectId]
+    );
+
+    if (rows.length === 0) {
+      return res
+        .status(404)
+        .json({ error: "No deliverables found for this project" });
+    }
+
+    res.status(200).json({ deliverables: rows });
+  } catch (error) {
+    console.error("Error fetching deliverables by project ID:", error);
+    res.status(500).json({ error: "Server error" });
   }
 };
