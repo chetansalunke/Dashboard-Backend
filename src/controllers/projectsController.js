@@ -102,56 +102,89 @@ export const updateProject = async (req, res) => {
       status,
     } = req.body;
 
-    const documentPaths = req.files?.length
-      ? req.files.map((file) => file.relativePath).join(",")
+    const newDocumentPaths = req.files
+      ? req.files
+          .map((file) => path.relative(process.cwd(), file.path))
+          .join(",")
       : null;
 
-    const fieldsToUpdate = {};
+    // Fetch existing document paths
+    const [existingDocuments] = await pool.query(
+      `SELECT document_upload FROM projects WHERE id = ?`,
+      [id]
+    );
 
-    if (projectName !== undefined) fieldsToUpdate.projectName = projectName;
-    if (site_address !== undefined) fieldsToUpdate.site_address = site_address;
-    if (description !== undefined) fieldsToUpdate.description = description;
-    if (duration !== undefined) fieldsToUpdate.duration = duration;
-    if (startDate !== undefined) fieldsToUpdate.project_start_date = startDate;
-    if (completionDate !== undefined)
-      fieldsToUpdate.project_completion_date = completionDate;
-    if (projectSize !== undefined) fieldsToUpdate.projectSize = projectSize;
-    if (pendingForm !== undefined) fieldsToUpdate.pendingForm = pendingForm;
-    if (clientId !== undefined) fieldsToUpdate.client_id = clientId;
-    if (consultantId !== undefined)
-      fieldsToUpdate.consultant_id =
+    const existingDocumentPaths = existingDocuments[0]?.document_upload || "";
+
+    // Combine new and existing document paths
+    const combinedDocumentPaths = [existingDocumentPaths, newDocumentPaths]
+      .filter(Boolean)
+      .join(",");
+
+    const [result] = await pool.query(
+      `UPDATE projects SET 
+        projectName = ?,
+        site_address = ?,
+        description = ?,
+        duration = ?,
+        project_start_date = ?,
+        project_completion_date = ?,
+        projectSize = ?,
+        pendingForm = ?,
+        client_id = ?,
+        consultant_id = ?,
+        assignTo = ?,
+        status = ?,
+        document_upload = ?
+      WHERE id = ?`,
+      [
+        projectName || null,
+        site_address || null,
+        description || null,
+        duration || null,
+        startDate || null,
+        completionDate || null,
+        projectSize || null,
+        pendingForm || null,
+        clientId || null,
         consultantId === "null" || consultantId === null
           ? null
-          : parseInt(consultantId);
-    if (assignTo !== undefined) fieldsToUpdate.assignTo = assignTo;
-    if (status !== undefined) fieldsToUpdate.status = status;
-    if (documentPaths) fieldsToUpdate.document_upload = documentPaths;
-
-    if (Object.keys(fieldsToUpdate).length === 0) {
-      return res
-        .status(400)
-        .json({ error: "No valid fields provided to update" });
-    }
-
-    const updateQuery = `
-      UPDATE projects
-      SET ${Object.keys(fieldsToUpdate)
-        .map((key) => `${key} = ?`)
-        .join(", ")}
-      WHERE id = ?
-    `;
-
-    const values = [...Object.values(fieldsToUpdate), id];
-
-    const [result] = await pool.query(updateQuery, values);
+          : parseInt(consultantId),
+        assignTo || null,
+        status || null,
+        combinedDocumentPaths,
+        id,
+      ]
+    );
 
     res.status(200).json({
       message: "Project updated successfully",
-      updatedFields: fieldsToUpdate,
+      updatedFields: {
+        projectName,
+        site_address,
+        description,
+        duration,
+        startDate,
+        completionDate,
+        projectSize,
+        pendingForm,
+        clientId,
+        consultantId,
+        assignTo,
+        status,
+        documentPaths: combinedDocumentPaths,
+      },
     });
   } catch (error) {
     console.error("Error updating project:", error);
-    res.status(500).json({ error: "Database error" });
+
+    if (error.code === "ER_BAD_FIELD_ERROR") {
+      return res.status(400).json({ error: "Invalid field in request" });
+    } else if (error.code === "ER_NO_REFERENCED_ROW_2") {
+      return res.status(400).json({ error: "Foreign key constraint failed" });
+    } else {
+      return res.status(500).json({ error: "Internal server error" });
+    }
   }
 };
 

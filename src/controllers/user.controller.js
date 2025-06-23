@@ -29,7 +29,7 @@ export const getUserByRole = async (req, res) => {
 };
 
 export const getUserById = async (req, res) => {
-  const { id } = req.params; 
+  const { id } = req.params;
 
   if (!id) {
     return res.status(400).json({ error: "User ID is required" });
@@ -50,37 +50,52 @@ export const getUserById = async (req, res) => {
 };
 
 export const patchUser = async (req, res) => {
-  const { id } = req.body;
+  try {
+    const { id } = req.body;
 
-  if (!id) {
-    return res.status(400).json({ error: "User ID is required for update" });
-  }
+    if (!id) {
+      return res.status(400).json({ error: "User ID is required for update" });
+    }
 
-  const allowedFields = ["username", "email", "role", "phone_number", "status"];
-  const fieldsToUpdate = [];
-  const values = [];
+    const { username, email, role, phone_number, status } = req.body;
 
-  for (const field of allowedFields) {
-    if (req.body[field] !== undefined) {
-      fieldsToUpdate.push(`${field} = ?`);
-      values.push(req.body[field]);
+    const [result] = await pool.query(
+      `UPDATE users SET 
+        username = ?,
+        email = ?,
+        role = ?,
+        phone_number = ?,
+        status = ?
+      WHERE id = ?`,
+      [
+        username || null,
+        email || null,
+        role || null,
+        phone_number || null,
+        status || null,
+        id,
+      ]
+    );
+
+    res.status(200).json({
+      message: "User updated successfully",
+      updatedFields: {
+        username,
+        email,
+        role,
+        phone_number,
+        status,
+      },
+    });
+  } catch (error) {
+    console.error("Error updating user:", error);
+
+    if (error.code === "ER_BAD_FIELD_ERROR") {
+      return res.status(400).json({ error: "Invalid field in request" });
+    } else if (error.code === "ER_NO_REFERENCED_ROW_2") {
+      return res.status(400).json({ error: "Foreign key constraint failed" });
+    } else {
+      return res.status(500).json({ error: "Internal server error" });
     }
   }
-
-  if (fieldsToUpdate.length === 0) {
-    return res.status(400).json({ error: "No valid fields provided for update" });
-  }
-
-  values.push(id); // Add user ID at the end for WHERE clause
-
-  const query = `UPDATE users SET ${fieldsToUpdate.join(", ")} WHERE id = ?`;
-
-  try {
-    await pool.query(query, values);
-    res.status(200).json({ message: "User updated successfully" });
-  } catch (err) {
-    console.error("User patch error:", err);
-    res.status(500).json({ error: "Database error during user update" });
-  }
 };
-
