@@ -244,6 +244,7 @@ export const assignTask = async (req, res) => {
       assignTo,
       projectId,
       deliverableId, // Added deliverableId field
+      is_drawing
     } = req.body;
 
     // Handle uploaded files (e.g., from multer)
@@ -260,8 +261,8 @@ export const assignTask = async (req, res) => {
 
     const [result] = await pool.query(
       `INSERT INTO gigfactorydb.assign_task
-        (task_name, priority, start_date, due_date, assign_to, checklist, project_id, assign_task_document, deliverable_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (task_name, priority, start_date, due_date, assign_to, checklist, project_id, assign_task_document, deliverable_id,is_drawing)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         taskName || null,
         priority || "Medium",
@@ -272,6 +273,7 @@ export const assignTask = async (req, res) => {
         projectId || null,
         documentPaths,
         deliverableId || null, // Added deliverableId to query
+        is_drawing ,
       ]
     );
 
@@ -1531,6 +1533,36 @@ export const getDeliverableByProjectId = async (req, res) => {
     res.status(200).json({ deliverables: rows });
   } catch (error) {
     console.error("Error fetching deliverables by project ID:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+
+
+
+// New API to fetch deliverables for a specific project ID
+export const getAllDeliverable = async (req, res) => {
+  const { userId } = req.params;
+
+  // if (!userId) {
+  //   return res.status(400).json({ error: "User ID is required" });
+  // }
+
+  try {
+    const [rows] = await pool.query(
+      `SELECT * FROM deliverable_list`,
+      
+    );
+
+    if (rows.length === 0) {
+      return res
+        .status(404)
+        .json({ error: "No deliverables found for this user" });
+    }
+
+    res.status(200).json({ deliverables: rows });
+  } catch (error) {
+    console.error("Error fetching deliverables by user ID:", error);
     res.status(500).json({ error: "Server error" });
   }
 };

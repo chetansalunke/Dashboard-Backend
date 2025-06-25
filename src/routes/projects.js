@@ -39,6 +39,7 @@ import {
   getDesignDrawings,
   updateProject,
   getDeliverableByProjectId,
+  getAllDeliverable,
 } from "../controllers/projectsController.js";
 import protect from "../middlewares/authMiddleware.js";
 
@@ -269,6 +270,13 @@ router.get(
   "/deliverables/:projectId",
   protect(ROLE.ADMIN, ROLE.DESIGNER, ROLE.EXPERT),
   getDeliverableByProjectId
+);
+
+// Route to get deliverables by user ID
+router.get(
+  "/deliverables-users/:userId",
+  protect(ROLE.ADMIN, ROLE.DESIGNER, ROLE.EXPERT),
+  getAllDeliverable
 );
 
 export default router;
