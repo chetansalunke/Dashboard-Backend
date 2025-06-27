@@ -244,7 +244,7 @@ export const assignTask = async (req, res) => {
       assignTo,
       projectId,
       deliverableId, // Added deliverableId field
-      is_drawing
+      is_drawing,
     } = req.body;
 
     // Handle uploaded files (e.g., from multer)
@@ -273,7 +273,7 @@ export const assignTask = async (req, res) => {
         projectId || null,
         documentPaths,
         deliverableId || null, // Added deliverableId to query
-        is_drawing ,
+        is_drawing,
       ]
     );
 
@@ -728,7 +728,8 @@ export const getDrawingsSentToUser = async (req, res) => {
 // DESIGNER Create Design Drawing
 export const createDesignDrawing = async (req, res) => {
   try {
-    const { project_id, name, remark, discipline, sent_by, sent_to } = req.body;
+    const { project_id, name, remark, discipline, sent_by, sent_to, task_id } =
+      req.body;
 
     if (!project_id || !name || !discipline || !sent_by || !sent_to) {
       return res.status(400).json({
@@ -745,10 +746,27 @@ export const createDesignDrawing = async (req, res) => {
 
     const [drawingResult] = await pool.query(
       `INSERT INTO design_drawing_list 
-        (project_id, name, remark, discipline, status, sent_by, sent_to,created_by) 
-       VALUES (?, ?, ?, ?, 'Sent to Expert', ?, ?,?)`,
-      [project_id, name, remark || "", discipline, sent_by, sent_to, sent_by]
+        (project_id, name, remark, discipline, status, sent_by, sent_to,created_by,task_id) 
+       VALUES (?, ?, ?, ?, 'Sent to Expert', ?, ?,?, ?)`,
+      [
+        project_id,
+        name,
+        remark || "",
+        discipline,
+        sent_by,
+        sent_to,
+        sent_by,
+        task_id,
+      ]
     );
+
+    // 2. Update task status
+    if (task_id) {
+      await pool.query(
+        `UPDATE assign_task SET status = 'In Progress' WHERE id = ?`,
+        [task_id]
+      );
+    }
 
     const drawingId = drawingResult.insertId;
 
@@ -1082,6 +1100,23 @@ export const clientReview = async (req, res) => {
       `UPDATE design_drawing_list SET status = ?, client_status = ? WHERE id = ?`,
       [status, dbStatus, drawing_id]
     );
+
+    if (status === "Approved by Client") {
+      // ✅ Get task_id from the drawing
+      const [[drawingRow]] = await pool.query(
+        `SELECT task_id FROM design_drawing_list WHERE id = ?`,
+        [drawing_id]
+      );
+
+      const taskId = drawingRow?.task_id;
+
+      if (taskId) {
+        await pool.query(
+          `UPDATE assign_task SET status = 'Completed' WHERE id = ?`,
+          [taskId]
+        );
+      }
+    }
 
     // 5. Optional: Insert comment
     if (comment) {
@@ -1537,9 +1572,6 @@ export const getDeliverableByProjectId = async (req, res) => {
   }
 };
 
-
-
-
 // New API to fetch deliverables for a specific project ID
 export const getAllDeliverable = async (req, res) => {
   const { userId } = req.params;
@@ -1549,10 +1581,7 @@ export const getAllDeliverable = async (req, res) => {
   // }
 
   try {
-    const [rows] = await pool.query(
-      `SELECT * FROM deliverable_list`,
-      
-    );
+    const [rows] = await pool.query(`SELECT * FROM deliverable_list`);
 
     if (rows.length === 0) {
       return res
