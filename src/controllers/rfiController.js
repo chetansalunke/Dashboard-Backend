@@ -339,20 +339,20 @@ export const resolveChangeOrder = async (req, res) => {
 
   try {
     // Ensure change order exists
-    const [existing] = await pool.query(
+    const [existingRows] = await pool.query(
       `SELECT * FROM change_orders WHERE id = ?`,
       [id]
     );
-    if (existing.length === 0) {
+    if (existingRows.length === 0) {
       return res.status(404).json({ message: "Change order not found" });
     }
+    const changeOrder = existingRows[0];
 
-    // Process uploaded files
+    // Process uploaded resolution documents
     const resolutionDocs =
       req.files?.map((file) =>
         path.relative(process.cwd(), file.path).replace(/\\/g, "/")
       ) || [];
-
     const resolutionDocsString = resolutionDocs.join(",");
     const resolved_at = new Date();
 
@@ -371,8 +371,27 @@ export const resolveChangeOrder = async (req, res) => {
       ]
     );
 
+    // Insert into deliverable_list
+    await pool.query(
+      `INSERT INTO deliverable_list 
+        (drawing_number, drawing_name, start_date, end_date, assign_to, project_id, created_at, updated_at, drawing_document, change_order_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        changeOrder.change_request_number, // Or generate drawing number
+        changeOrder.description_of_change, // As drawing name
+        changeOrder.date, // Use change order date as start_date
+        changeOrder.date, // Same for end_date if not available
+        changeOrder.resolved_by, // assign_to
+        changeOrder.project_id,
+        new Date(),
+        new Date(),
+        resolutionDocsString, // drawing_document
+        changeOrder.id,
+      ]
+    );
+
     res.status(200).json({
-      message: "Change order resolved successfully",
+      message: "Change order resolved and deliverable created successfully",
       resolution_documents: resolutionDocs,
     });
   } catch (error) {

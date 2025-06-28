@@ -73,7 +73,7 @@ app.use(
   })
 );
 app.use(`/${BASE_RFI_PATH}`, express.static(rfiDir));
-app.use(`/${BASE_RFI_PATH}`, express.static(changeOrderDir));
+app.use(`/${CHANGE_ORDER_FOLDER}`, express.static(changeOrderDir));
 
 // Add file download endpoint with proper path resolution
 app.get("/download/:folder/:filename", (req, res) => {
@@ -96,6 +96,8 @@ app.get("/download/:folder/:filename", (req, res) => {
     filePath = path.join(rfiDir, filename);
   } else if (folder === DESIGN_DRAWING_FOLDER) {
     filePath = path.join(designDrawingDir, filename);
+  } else if (folder === CHANGE_ORDER_FOLDER) {
+    filePath = path.join(changeOrderDir, filename);
   } else {
     return res.status(400).send("Invalid folder");
   }
@@ -142,5 +144,6 @@ app.listen(PORT, (error) => {
     console.log(`Server running on port ${PORT}`);
     console.log(`File uploads available at: /${BASE_UPLOAD_PATH}`);
     console.log(`RFI files available at: /${BASE_RFI_PATH}`);
+    console.log(`Change order files available at: /${CHANGE_ORDER_FOLDER}`);
   }
 });
