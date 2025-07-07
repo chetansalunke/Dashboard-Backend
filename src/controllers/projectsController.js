@@ -744,10 +744,11 @@ export const createDesignDrawing = async (req, res) => {
           .join(",")
       : null;
 
+    // 1. Insert into design_drawing_list
     const [drawingResult] = await pool.query(
       `INSERT INTO design_drawing_list 
-        (project_id, name, remark, discipline, status, sent_by, sent_to,created_by,task_id) 
-       VALUES (?, ?, ?, ?, 'Sent to Expert', ?, ?,?, ?)`,
+        (project_id, name, remark, discipline, status, sent_by, sent_to, created_by, task_id) 
+       VALUES (?, ?, ?, ?, 'Sent to Expert', ?, ?, ?, ?)`,
       [
         project_id,
         name,
@@ -760,29 +761,31 @@ export const createDesignDrawing = async (req, res) => {
       ]
     );
 
-    // 2. Update task status
+    const drawingId = drawingResult.insertId;
+
+    // 2. Insert into drawing_versions including remark
+    const [versionResult] = await pool.query(
+      `INSERT INTO drawing_versions 
+        (drawing_id, version_number, document_path, uploaded_by, is_latest, remark) 
+       VALUES (?, 1, ?, ?, 1, ?)`,
+      [drawingId, documentPaths, sent_by, remark || ""]
+    );
+
+    const latestVersionId = versionResult.insertId;
+
+    // 3. Update latest_version_id in design_drawing_list
+    await pool.query(
+      `UPDATE design_drawing_list SET latest_version_id = ? WHERE id = ?`,
+      [latestVersionId, drawingId]
+    );
+
+    // 4. Update task status if task_id exists
     if (task_id) {
       await pool.query(
         `UPDATE assign_task SET status = 'In Progress' WHERE id = ?`,
         [task_id]
       );
     }
-
-    const drawingId = drawingResult.insertId;
-
-    const [versionResult] = await pool.query(
-      `INSERT INTO drawing_versions 
-       (drawing_id, version_number, document_path, uploaded_by, is_latest) 
-       VALUES (?, 1, ?, ?, 1)`,
-      [drawingId, documentPaths, sent_by]
-    );
-
-    const latestVersionId = versionResult.insertId;
-
-    await pool.query(
-      `UPDATE design_drawing_list SET latest_version_id = ? WHERE id = ?`,
-      [latestVersionId, drawingId]
-    );
 
     return res.status(201).json({
       drawing_id: drawingId,
@@ -1191,7 +1194,7 @@ export const getDrawingHistory = async (req, res) => {
   try {
     const { id: drawing_id } = req.params;
 
-    // 1. Get all versions
+    // 1. Fetch all versions including remark
     const [versions] = await pool.query(
       `
       SELECT 
@@ -1201,7 +1204,8 @@ export const getDrawingHistory = async (req, res) => {
         dv.uploaded_by,
         u.username AS uploaded_by_name,
         dv.is_latest,
-        dv.uploaded_at
+        dv.uploaded_at,
+        dv.remark
       FROM drawing_versions dv
       LEFT JOIN users u ON dv.uploaded_by = u.id
       WHERE dv.drawing_id = ?
@@ -1220,28 +1224,26 @@ export const getDrawingHistory = async (req, res) => {
 
     const versionIds = versions.map((v) => v.version_id);
 
-    let comments = [];
-    if (versionIds.length > 0) {
-      const [commentRows] = await pool.query(
-        `
-        SELECT 
-          c.drawing_version_id,
-          c.commenter_role,
-          c.comment,
-          c.created_at,
-          u.username AS commenter_name
-        FROM drawing_version_comments c
-        JOIN users u ON c.commenter_id = u.id
-        WHERE c.drawing_version_id IN (?)
-        ORDER BY c.created_at ASC
-        `,
-        [versionIds]
-      );
-      comments = commentRows;
-    }
+    // 2. Fetch all comments for the versions
+    const [commentRows] = await pool.query(
+      `
+      SELECT 
+        c.drawing_version_id,
+        c.commenter_role,
+        c.comment,
+        c.created_at,
+        u.username AS commenter_name
+      FROM drawing_version_comments c
+      JOIN users u ON c.commenter_id = u.id
+      WHERE c.drawing_version_id IN (?)
+      ORDER BY c.created_at ASC
+      `,
+      [versionIds]
+    );
 
+    // 3. Combine each version with its comments and remark
     const versionHistory = versions.map((version) => {
-      const versionComments = comments
+      const versionComments = commentRows
         .filter((c) => c.drawing_version_id === version.version_id)
         .map((c) => ({
           commenter_role: c.commenter_role,
@@ -1258,17 +1260,19 @@ export const getDrawingHistory = async (req, res) => {
         uploaded_by_name: version.uploaded_by_name,
         is_latest: version.is_latest,
         uploaded_at: version.uploaded_at,
+        remark: version.remark || null,
         comments: versionComments,
       };
     });
 
+    // 4. Send final result
     return res.status(200).json({
       message: "Drawing version history retrieved successfully.",
       count: versionHistory.length,
       versions: versionHistory,
     });
   } catch (err) {
-    console.error("History Fetch Error:", err); // Full error log
+    console.error("History Fetch Error:", err);
     return res.status(500).json({
       error: "Failed to fetch drawing version history.",
     });

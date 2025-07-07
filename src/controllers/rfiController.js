@@ -239,10 +239,10 @@ export const getRfisSentToClient = async (req, res) => {
   console.log(user.id);
 
   try {
-    const [results] = await pool.query("SELECT * FROM rfi WHERE send_to = ? ", [
-      user_id,
-      user_id,
-    ]);
+    const [results] = await pool.query(
+      "SELECT * FROM rfi WHERE send_to = ? or sent_to_client=?",
+      [user_id, user_id]
+    );
     res.status(200).json(results);
   } catch (error) {
     console.error("Error fetching user RFIs:", error);
