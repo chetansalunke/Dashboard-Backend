@@ -198,20 +198,21 @@ export const createDeliverableList = async (req, res) => {
       endDate,
       assignTo,
       projectId,
+      discipline
     } = req.body;
 
     // Validate required fields
-    if (!drawingNumber || !drawingName || !projectId) {
+    if (!drawingNumber || !drawingName || !projectId || !discipline) {
       return res.status(400).json({
         error:
-          "Missing required fields: drawingNumber, drawingName, or projectId",
+          "Missing required fields: drawingNumber, drawingName, or projectId or discipline",
       });
     }
 
     const [result] = await pool.query(
       `INSERT INTO gigfactorydb.deliverable_list
-        (drawing_number, drawing_name, start_date, end_date, assign_to, project_id)
-        VALUES (?, ?, ?, ?, ?, ?)`,
+        (drawing_number, drawing_name, start_date, end_date, assign_to, project_id, discipline)
+        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
         drawingNumber,
         drawingName,
@@ -219,6 +220,7 @@ export const createDeliverableList = async (req, res) => {
         endDate || null,
         assignTo || null,
         projectId,
+        discipline || null, // Added discipline field
       ]
     );
 
