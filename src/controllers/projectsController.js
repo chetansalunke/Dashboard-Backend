@@ -198,7 +198,7 @@ export const createDeliverableList = async (req, res) => {
       endDate,
       assignTo,
       projectId,
-      discipline
+      discipline,
     } = req.body;
 
     // Validate required fields

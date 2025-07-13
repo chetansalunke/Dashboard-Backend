@@ -9,6 +9,7 @@ import authRoutes from "./routes/authRoutes.js";
 import projects from "./routes/projects.js";
 import rfiRoutes from "./routes/rfiRoutes.js";
 import userRoutes from "./routes/user.routes.js";
+import adminDashboardRoutes from "./routes/adminDashboardRoutes.js";
 dotenv.config();
 
 const PORT = process.env.PORT || 3000;
@@ -117,6 +118,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/projects", projects);
 app.use("/api", rfiRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/admin", adminDashboardRoutes);
 
 // Test route
 app.get("/api/test", (req, res) => res.json({ message: "CORS works!" }));
