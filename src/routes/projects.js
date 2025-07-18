@@ -40,6 +40,7 @@ import {
   updateProject,
   getDeliverableByProjectId,
   getAllDeliverable,
+  updateDeliverableStatusIfAllTasksCompleted
 } from "../controllers/projectsController.js";
 import protect from "../middlewares/authMiddleware.js";
 
@@ -279,4 +280,7 @@ router.get(
   getAllDeliverable
 );
 
+// router.patch('/:projectId/update-deliverable-statuses',protect(ROLE.ADMIN, ROLE.DESIGNER, ROLE.EXPERT), updateDeliverableStatusIfAllTasksCompleted);
+
+router.patch('/deliverable/:deliverableId/update-status',protect(ROLE.ADMIN, ROLE.DESIGNER, ROLE.EXPERT), updateDeliverableStatusIfAllTasksCompleted);
 export default router;

@@ -1,3 +1,394 @@
+// Get recent activities for RFI, change order, and drawing
+export const getRecentProjectActivities = async (req, res) => {
+  try {
+    const { limit = 10 } = req.query;
+    const { projectId } = req.params;
+    const params = [];
+    let projectFilter = "";
+    if (projectId) {
+      projectFilter = "WHERE project_id = ?";
+      params.push(projectId);
+    }
+
+    // Recent RFIs
+    const [recentRfis] = await pool.query(
+      `SELECT id, title, status, created_at, resolved_at
+       FROM rfi
+       ${projectFilter}
+       ORDER BY resolved_at DESC, created_at DESC
+       LIMIT ?`,
+      [...params, parseInt(limit)]
+    );
+
+    // Recent Change Orders
+    const [recentChangeOrders] = await pool.query(
+      `SELECT id, change_request_number, status, date, resolved_at
+       FROM change_orders
+       ${projectFilter}
+       ORDER BY date DESC, resolved_at DESC
+       LIMIT ?`,
+      [...params, parseInt(limit)]
+    );
+
+    // Recent Drawings
+    const [recentDrawings] = await pool.query(
+      `SELECT id, project_id, name, remark, discipline, sent_by, sent_to, created_date, document_path, latest_version_id, previous_version_id, status, expert_status, client_status, created_by, task_id
+       FROM design_drawing_list
+       ${projectFilter}
+       ORDER BY created_date DESC, id DESC
+       LIMIT ?`,
+      [...params, parseInt(limit)]
+    );
+
+    res.status(200).json({
+      recentRfis,
+      recentChangeOrders,
+      recentDrawings,
+    });
+  } catch (error) {
+    console.error("Error fetching recent project activities:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+// Get overdue deliverables for a specific project
+export const getOverdueDeliverablesByProject = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    if (!projectId) {
+      return res.status(400).json({ error: "projectId is required" });
+    }
+    // Only include deliverables that have at least one associated task
+    const [overdueDeliverables] = await pool.query(
+      `SELECT d.id, d.drawing_name, d.end_date, d.status
+       FROM deliverable_list d
+       WHERE d.project_id = ?
+         AND d.end_date IS NOT NULL
+         AND d.end_date < CURDATE()
+         AND (d.status IS NULL OR d.status != 'Completed')
+         AND EXISTS (
+           SELECT 1 FROM assign_task t WHERE t.deliverable_id = d.id
+         )`,
+      [projectId]
+    );
+
+    res.status(200).json({
+      project_id: projectId,
+      overdue_count: overdueDeliverables.length,
+      overdue_deliverables: overdueDeliverables,
+    });
+  } catch (error) {
+    console.error("Error fetching overdue deliverables:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+// Get upcoming deliverables for a specific project (end date within next 3 days)
+export const getUpcomingDeliverablesByProject = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    if (!projectId) {
+      return res.status(400).json({ error: "projectId is required" });
+    }
+    // Only include deliverables that have at least one associated task
+    const [upcomingDeliverables] = await pool.query(
+      `SELECT d.id, d.drawing_name, d.end_date, d.status
+   FROM deliverable_list d
+   WHERE d.project_id = ?
+     AND d.end_date IS NOT NULL
+     AND DATE(d.end_date) >= CURDATE()
+     AND DATE(d.end_date) < DATE_ADD(CURDATE(), INTERVAL 4 DAY)
+     AND (d.status IS NULL OR TRIM(LOWER(d.status)) != 'completed')
+     AND EXISTS (
+       SELECT 1 FROM assign_task t WHERE t.deliverable_id = d.id
+     )`,
+      [projectId]
+    );
+
+    res.status(200).json({
+      project_id: projectId,
+      upcoming_count: upcomingDeliverables.length,
+      upcoming_deliverables: upcomingDeliverables,
+    });
+  } catch (error) {
+    console.error("Error fetching upcoming deliverables:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+// Get approval rate for design drawings for a specific project
+export const getProjectDrawingApprovalRate = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    if (!projectId) {
+      return res.status(400).json({ error: "projectId is required" });
+    }
+    // Count drawings sent for approval (Sent to Client for approval OR Approved by Client)
+    const [sentResult] = await pool.query(
+      `SELECT COUNT(*) as sent_count FROM design_drawing_list WHERE project_id = ? AND (status = 'Sent to Client' OR status = 'Approved by Client')`,
+      [projectId]
+    );
+    // Count drawings approved by client
+    const [approvedResult] = await pool.query(
+      `SELECT COUNT(*) as approved_count FROM design_drawing_list WHERE project_id = ? AND status = 'Approved by Client'`,
+      [projectId]
+    );
+    const sent_count = sentResult[0].sent_count;
+    const approved_count = approvedResult[0].approved_count;
+    let approval_rate = 0;
+    if (sent_count > 0) {
+      approval_rate = (approved_count / sent_count) * 100;
+    }
+    res.status(200).json({
+      project_id: projectId,
+      sent_for_approval: sent_count,
+      approved_by_client: approved_count,
+      approval_rate: Math.round(approval_rate * 100) / 100, // rounded to 2 decimals
+    });
+  } catch (error) {
+    console.error("Error fetching drawing approval rate:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+// Get progress for a specific project
+export const getProjectProgress = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    if (!projectId) {
+      return res.status(400).json({ error: "projectId is required" });
+    }
+    // Get project completion date
+    const [projectRows] = await pool.query(
+      `SELECT project_completion_date FROM projects WHERE id = ?`,
+      [projectId]
+    );
+    if (projectRows.length === 0) {
+      return res.status(404).json({ error: "Project not found" });
+    }
+    const project_completion_date = projectRows[0].project_completion_date;
+    const today = new Date();
+    // Get all deliverables for the project, including status
+    const [deliverables] = await pool.query(
+      `SELECT id, drawing_name, end_date, status FROM deliverable_list WHERE project_id = ?`,
+      [projectId]
+    );
+    const total_deliverables = deliverables.length;
+    if (total_deliverables === 0) {
+      return res.status(200).json({
+        project_id: projectId,
+        total_deliverables: 0,
+        completed_deliverables: 0,
+        progress_percent: 0,
+        status: "in progress",
+        deliverables: [],
+      });
+    }
+    let completed_deliverables = 0;
+    const deliverableDetails = [];
+    // For each deliverable, get its tasks and completion status
+    for (const d of deliverables) {
+      const [tasks] = await pool.query(
+        `SELECT id, task_name, status, due_date FROM assign_task WHERE deliverable_id = ?`,
+        [d.id]
+      );
+      // If all tasks are completed, update deliverable status if not already
+      const allCompleted =
+        tasks.length > 0 && tasks.every((t) => t.status === "Completed");
+      if (allCompleted && d.status !== "Completed") {
+        await pool.query(
+          `UPDATE deliverable_list SET status = 'Completed', completed_at = NOW() WHERE id = ?`,
+          [d.id]
+        );
+        d.status = "Completed";
+      } else if (!allCompleted && d.status === "Completed") {
+        await pool.query(
+          `UPDATE deliverable_list SET status = 'In Progress', completed_at = NULL WHERE id = ?`,
+          [d.id]
+        );
+        d.status = "In Progress";
+      }
+      if (d.status === "Completed") completed_deliverables++;
+      deliverableDetails.push({
+        deliverable_id: d.id,
+        drawing_name: d.drawing_name,
+        end_date: d.end_date,
+        status: d.status,
+        all_tasks_completed: allCompleted,
+        tasks: tasks,
+      });
+    }
+    const progress_percent = Math.round(
+      (completed_deliverables / total_deliverables) * 100
+    );
+    // Determine project status
+    let status = "in progress";
+    const allDeliverablesCompleted =
+      completed_deliverables === total_deliverables;
+    const projectDate = project_completion_date
+      ? new Date(project_completion_date)
+      : null;
+    if (allDeliverablesCompleted && projectDate) {
+      if (today < projectDate) {
+        status = "before time";
+      } else if (
+        today.getFullYear() === projectDate.getFullYear() &&
+        today.getMonth() === projectDate.getMonth() &&
+        today.getDate() === projectDate.getDate()
+      ) {
+        status = "on time";
+      } else if (today > projectDate) {
+        status = "delay";
+      }
+    } else if (
+      !allDeliverablesCompleted &&
+      projectDate &&
+      today > projectDate
+    ) {
+      status = "delay";
+    }
+    res.status(200).json({
+      project_id: projectId,
+      total_deliverables,
+      completed_deliverables,
+      progress_percent,
+      status,
+      project_completion_date,
+      deliverables: deliverableDetails,
+    });
+  } catch (error) {
+    console.error("Error fetching project progress:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+// Get pending and resolved change order counts for a specific project
+export const getProjectChangeOrderCounts = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    if (!projectId) {
+      return res.status(400).json({ error: "projectId is required" });
+    }
+    // Pending: status 'Pending' or 'Sent to Client'
+    const [pendingResult] = await pool.query(
+      `SELECT COUNT(*) as pending_count FROM change_orders WHERE project_id = ? AND (status = 'Pending' OR status = 'Sent to Client')`,
+      [projectId]
+    );
+    // Resolved: status 'Resolved'
+    const [resolvedResult] = await pool.query(
+      `SELECT COUNT(*) as resolved_count FROM change_orders WHERE project_id = ? AND status = 'Resolved'`,
+      [projectId]
+    );
+    res.status(200).json({
+      pending_count: pendingResult[0].pending_count,
+      resolved_count: resolvedResult[0].resolved_count,
+    });
+  } catch (error) {
+    console.error("Error fetching change order counts:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+// Get pending RFIs (title, created_at) and count for a specific project
+export const getProjectPendingRfis = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    if (!projectId) {
+      return res.status(400).json({ error: "projectId is required" });
+    }
+    // Get pending RFIs (Pending or Sent to Client)
+    const [pendingRfis] = await pool.query(
+      `SELECT title, created_at FROM rfi WHERE project_id = ? AND (status = 'Pending' OR status = 'Sent to Client')`,
+      [projectId]
+    );
+    // Get count
+    const [countResult] = await pool.query(
+      `SELECT COUNT(*) as pending_count FROM rfi WHERE project_id = ? AND (status = 'Pending' OR status = 'Sent to Client')`,
+      [projectId]
+    );
+    res.status(200).json({
+      pendingRfis,
+      pending_count: countResult[0].pending_count,
+    });
+  } catch (error) {
+    console.error("Error fetching pending RFIs:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+// Get average TAT (Turnaround Time) in days for resolved RFIs for a specific project
+export const getProjectRfiAverageTat = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    if (!projectId) {
+      return res.status(400).json({ error: "projectId is required" });
+    }
+    // Calculate TAT for each resolved RFI and then average
+    const [result] = await pool.query(
+      `SELECT AVG(DATEDIFF(resolved_at, created_at)) AS average_tat_days
+       FROM rfi
+       WHERE project_id = ? AND resolved_at IS NOT NULL AND created_at IS NOT NULL`,
+      [projectId]
+    );
+    res.status(200).json({ average_tat_days: result[0].average_tat_days });
+  } catch (error) {
+    console.error("Error fetching RFI average TAT:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+// Get days remaining for project completion for a specific project
+export const getProjectDaysRemaining = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    if (!projectId) {
+      return res.status(400).json({ error: "projectId is required" });
+    }
+    const [result] = await pool.query(
+      `SELECT project_completion_date, DATEDIFF(project_completion_date, CURDATE()) AS days_remaining FROM projects WHERE id = ?`,
+      [projectId]
+    );
+    if (result.length === 0) {
+      return res.status(404).json({ error: "Project not found" });
+    }
+    res.status(200).json({
+      project_completion_date: result[0].project_completion_date,
+      days_remaining: result[0].days_remaining,
+    });
+  } catch (error) {
+    console.error("Error fetching project days remaining:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+// Get count of tasks completed today
+export const getCompletedTasksTodayCount = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    let query = `
+      SELECT COUNT(*) as completedToday
+      FROM assign_task
+      WHERE status = 'Completed' AND DATE(updated_at) = CURDATE()`;
+    const params = [];
+    if (projectId) {
+      query += " AND project_id = ?";
+      params.push(projectId);
+    }
+    const [result] = await pool.query(query, params);
+    res.status(200).json({ completedToday: result[0].completedToday });
+  } catch (error) {
+    console.error("Error fetching completed tasks today count:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // src/controllers/adminDashboardController.js
 import pool from "../config/db.js";
 
