@@ -1,6 +1,155 @@
+// Update a single deliverable's status to Completed if all its tasks are completed
+export const updateDeliverableStatusIfAllTasksCompleted = async (req, res) => {
+  try {
+    const { deliverableId } = req.params;
+    if (!deliverableId) {
+      return res.status(400).json({ error: "deliverableId is required" });
+    }
+    // Get all tasks for this deliverable
+    const [tasks] = await pool.query(
+      `SELECT id, status FROM assign_task WHERE deliverable_id = ?`,
+      [deliverableId]
+    );
+    // Get current deliverable status
+    const [deliverableRows] = await pool.query(
+      `SELECT status FROM deliverable_list WHERE id = ?`,
+      [deliverableId]
+    );
+    const currentStatus = deliverableRows[0]?.status;
+    if (tasks.length === 0) {
+      // If no tasks, do not change status
+      return res.status(200).json({
+        deliverable_id: deliverableId,
+        updated: false,
+        message: "No tasks found for this deliverable.",
+      });
+    }
+    const allCompleted = tasks.every((t) => t.status === "Completed");
+    if (allCompleted) {
+      // Update deliverable status and completed_at
+      if (currentStatus !== "Completed") {
+        await pool.query(
+          `UPDATE deliverable_list SET status = 'Completed', completed_at = NOW() WHERE id = ?`,
+          [deliverableId]
+        );
+      }
+      return res.status(200).json({
+        deliverable_id: deliverableId,
+        updated: true,
+        message: "Deliverable marked as Completed.",
+      });
+    } else {
+      // If deliverable is marked Completed but not all tasks are completed (e.g., new task added), set to In Progress
+      if (currentStatus === "Completed") {
+        await pool.query(
+          `UPDATE deliverable_list SET status = 'In Progress', completed_at = NULL WHERE id = ?`,
+          [deliverableId]
+        );
+        return res.status(200).json({
+          deliverable_id: deliverableId,
+          updated: true,
+          message:
+            "Deliverable status set to In Progress because not all tasks are completed.",
+        });
+      }
+      return res.status(200).json({
+        deliverable_id: deliverableId,
+        updated: false,
+        message: "Not all tasks are completed for this deliverable.",
+      });
+    }
+  } catch (error) {
+    console.error("Error updating deliverable status:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+};
 // src/controllers/projectsController.js
 import pool from "../config/db.js";
 import path from "path";
+
+// Updated deliverable status function with better debugging and error handling
+export const updateDeliverableStatuses = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    if (!projectId) {
+      return res.status(400).json({ error: "projectId is required" });
+    }
+
+    console.log(`Updating deliverable statuses for project: ${projectId}`);
+
+    // Get all deliverables for the project
+    const [deliverables] = await pool.query(
+      `SELECT id, status, drawing_name FROM deliverable_list WHERE project_id = ?`,
+      [projectId]
+    );
+
+    console.log(
+      `Found ${deliverables.length} deliverables for project ${projectId}`
+    );
+
+    let updated = 0;
+    for (const d of deliverables) {
+      console.log(
+        `Processing deliverable ${d.id} (${d.name}) - Current status: ${d.status}`
+      );
+
+      // Get all tasks for this deliverable
+      const [tasks] = await pool.query(
+        `SELECT id, status, task_name FROM assign_task WHERE deliverable_id = ?`,
+        [d.id]
+      );
+
+      console.log(
+        `Deliverable ${d.id} has ${tasks.length} tasks:`,
+        tasks.map((t) => `Task ${t.id}: ${t.task_name} - ${t.status}`)
+      );
+
+      // Check if there are tasks and all are completed
+      const allCompleted =
+        tasks.length > 0 && tasks.every((t) => t.status === "Completed");
+
+      console.log(
+        `Deliverable ${d.id}: Has tasks: ${
+          tasks.length > 0
+        }, All completed: ${allCompleted}, Current status: ${d.status}`
+      );
+
+      if (allCompleted && d.status !== "Completed") {
+        console.log(`Updating deliverable ${d.id} to Completed`);
+
+        const [updateResult] = await pool.query(
+          `UPDATE deliverable_list SET status = 'Completed', completed_at = NOW() WHERE id = ?`,
+          [d.id]
+        );
+
+        console.log(`Update result for deliverable ${d.id}:`, updateResult);
+        updated++;
+      } else if (allCompleted && d.status === "Completed") {
+        console.log(`Deliverable ${d.id} is already marked as Completed`);
+      } else if (!allCompleted && tasks.length > 0) {
+        console.log(
+          `Deliverable ${d.id} has incomplete tasks:`,
+          tasks
+            .filter((t) => t.status !== "Completed")
+            .map((t) => `${t.task_name}: ${t.status}`)
+        );
+      } else if (tasks.length === 0) {
+        console.log(`Deliverable ${d.id} has no tasks assigned`);
+      }
+    }
+
+    console.log(`Total deliverables updated: ${updated}`);
+    res.status(200).json({
+      message: `Updated ${updated} deliverables to Completed.`,
+      totalDeliverables: deliverables.length,
+      updatedCount: updated,
+    });
+  } catch (error) {
+    console.error("Error updating deliverable statuses:", error);
+    res.status(500).json({ error: "Server error", details: error.message });
+  }
+};
+
 // create project
 export const createProject = async (req, res) => {
   try {
@@ -279,6 +428,47 @@ export const assignTask = async (req, res) => {
       ]
     );
 
+    // After creating a task, update deliverable status if needed
+    if (deliverableId) {
+      // Call the same logic as updateDeliverableStatusIfAllTasksCompleted
+      try {
+        // Get all tasks for this deliverable
+        const [tasks] = await pool.query(
+          `SELECT id, status FROM assign_task WHERE deliverable_id = ?`,
+          [deliverableId]
+        );
+        // Get current deliverable status
+        const [deliverableRows] = await pool.query(
+          `SELECT status FROM deliverable_list WHERE id = ?`,
+          [deliverableId]
+        );
+        const currentStatus = deliverableRows[0]?.status;
+        if (tasks.length > 0) {
+          const allCompleted = tasks.every((t) => t.status === "Completed");
+          if (allCompleted) {
+            if (currentStatus !== "Completed") {
+              await pool.query(
+                `UPDATE deliverable_list SET status = 'Completed', completed_at = NOW() WHERE id = ?`,
+                [deliverableId]
+              );
+            }
+          } else {
+            if (currentStatus === "Completed") {
+              await pool.query(
+                `UPDATE deliverable_list SET status = 'In Progress', completed_at = NULL WHERE id = ?`,
+                [deliverableId]
+              );
+            }
+          }
+        }
+      } catch (err) {
+        console.error(
+          "Error auto-updating deliverable status after task creation:",
+          err
+        );
+      }
+    }
+
     res.status(201).json({
       message: "Task assigned successfully",
       taskId: result.insertId,
@@ -543,7 +733,7 @@ export const getAllTaskByProjectId = async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT 
-	users.username,assign_task.checklist, assign_task.assign_task_document,
+  users.username,assign_task.checklist, assign_task.assign_task_document,
   assign_task.task_name, 
   assign_task.priority, 
   projects.projectName 

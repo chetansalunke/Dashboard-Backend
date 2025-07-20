@@ -374,8 +374,8 @@ export const resolveChangeOrder = async (req, res) => {
     // Insert into deliverable_list
     await pool.query(
       `INSERT INTO deliverable_list 
-        (drawing_number, drawing_name, start_date, end_date, assign_to, project_id, created_at, updated_at, drawing_document, change_order_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (drawing_number, drawing_name, start_date, end_date, assign_to, project_id, created_at, updated_at, drawing_document)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         changeOrder.change_request_number, // Or generate drawing number
         changeOrder.description_of_change, // As drawing name
