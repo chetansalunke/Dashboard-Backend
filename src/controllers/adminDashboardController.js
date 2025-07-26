@@ -1,3 +1,196 @@
+export const getProjectAverageTaskDelay = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { designerId, groupBy } = req.query; // NEW
+
+    if (!projectId) {
+      return res.status(400).json({ error: "projectId is required" });
+    }
+
+    let query = `
+      SELECT 
+        at.id,
+        at.task_name,
+        at.due_date,
+        at.updated_at,
+        at.assign_to,
+        u.username,
+        DATEDIFF(at.updated_at, at.due_date) AS delay_days
+      FROM assign_task at
+      JOIN users u ON u.id = at.assign_to
+      WHERE at.project_id = ?
+        AND at.status = 'Completed'
+        AND at.due_date IS NOT NULL
+        AND at.updated_at IS NOT NULL
+    `;
+
+    const params = [projectId];
+    if (designerId) {
+      query += ` AND at.assign_to = ?`;
+      params.push(designerId);
+    }
+
+    const [tasks] = await pool.query(query, params);
+
+    if (!tasks.length) {
+      return res.status(200).json({
+        average_delay: 0,
+        delays: [],
+        total_tasks: 0,
+      });
+    }
+
+    // Handle grouping
+    const delays = [];
+    if (groupBy === "user") {
+      const grouped = {};
+      tasks.forEach((task) => {
+        if (!grouped[task.username]) grouped[task.username] = [];
+        grouped[task.username].push(task.delay_days);
+      });
+
+      for (const user in grouped) {
+        const avg = grouped[user].reduce((a, b) => a + b, 0) / grouped[user].length;
+        delays.push({ group: user, delay: parseFloat(avg.toFixed(2)) });
+      }
+    } else if (groupBy === "week") {
+      const grouped = {};
+      tasks.forEach((task) => {
+        const week = `W${getWeekNumber(new Date(task.updated_at))}`;
+        if (!grouped[week]) grouped[week] = [];
+        grouped[week].push(task.delay_days);
+      });
+
+      for (const week in grouped) {
+        const avg = grouped[week].reduce((a, b) => a + b, 0) / grouped[week].length;
+        delays.push({ group: week, delay: parseFloat(avg.toFixed(2)) });
+      }
+    } else {
+      // default - each task
+      tasks.forEach((task) => {
+        delays.push({
+          task_id: `T${task.id.toString().padStart(3, "0")}`,
+          task_name: task.task_name,
+          delay: task.delay_days,
+          updated_at: task.updated_at,
+          due_date: task.due_date,
+          designer: task.username,
+        });
+      });
+    }
+
+    const flatDelays = groupBy ? delays.map((d) => d.delay) : delays.map((d) => d.delay);
+    const totalDelay = flatDelays.reduce((a, b) => a + b, 0);
+    const avgDelay = totalDelay / flatDelays.length;
+
+    res.status(200).json({
+      average_delay: parseFloat(avgDelay.toFixed(2)),
+      delays,
+      total_tasks: flatDelays.length,
+    });
+  } catch (error) {
+    console.error("Error fetching task delays:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+// Helper: Get ISO week number
+function getWeekNumber(date) {
+  const firstJan = new Date(date.getFullYear(), 0, 1);
+  const days = Math.floor((date - firstJan) / (24 * 60 * 60 * 1000));
+  return Math.ceil((date.getDay() + 1 + days) / 7);
+}
+
+// Get week-wise task completion rate for a project
+export const getProjectWeeklyTaskCompletionRate = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    if (!projectId) {
+      return res.status(400).json({ error: "projectId is required" });
+    }
+
+    // Get project start and end date
+    const [projectData] = await pool.query(
+      `SELECT project_start_date AS start_date, project_completion_date AS end_date 
+       FROM projects 
+       WHERE id = ?`,
+      [projectId]
+    );
+
+    if (projectData.length === 0) {
+      return res.status(404).json({ error: "Project not found" });
+    }
+
+    const { start_date, end_date } = projectData[0];
+    if (!start_date || !end_date) {
+      return res.status(400).json({ error: "Project start and end dates are required" });
+    }
+
+    // Generate week ranges
+    const startDate = new Date(start_date);
+    const endDate = new Date(end_date);
+    const weeks = [];
+
+    let current = new Date(startDate);
+    while (current <= endDate) {
+      const weekStart = new Date(current);
+      const weekEnd = new Date(current);
+      weekEnd.setDate(weekEnd.getDate() + 6); // 7-day week
+
+      if (weekEnd > endDate) weekEnd.setTime(endDate.getTime());
+
+      weeks.push({
+        start: weekStart.toISOString().split("T")[0],
+        end: weekEnd.toISOString().split("T")[0],
+      });
+
+      current.setDate(current.getDate() + 7);
+    }
+
+    const results = [];
+
+    for (let i = 0; i < weeks.length; i++) {
+      const { start, end } = weeks[i];
+
+      const [taskStats] = await pool.query(
+        `SELECT 
+           COUNT(*) AS total_tasks,
+           SUM(CASE WHEN status = 'Completed' THEN 1 ELSE 0 END) AS completed_tasks
+         FROM assign_task
+         WHERE project_id = ?
+           AND DATE(created_at) BETWEEN ? AND ?`,
+        [projectId, start, end]
+      );
+
+      const total = taskStats[0].total_tasks;
+      const completed = taskStats[0].completed_tasks || 0;
+      const completionRate = total === 0 ? 0 : Math.round((completed / total) * 100);
+
+      results.push({
+        week: `Week ${i + 1}`,
+        start_date: start,
+        end_date: end,
+        total_tasks: total,
+        completed_tasks: completed,
+        completion_rate: completionRate,
+      });
+    }
+
+    const avgCompletion =
+      results.reduce((sum, r) => sum + r.completion_rate, 0) / results.length;
+
+    res.status(200).json({
+      project_id: projectId,
+      weekly_completion: results,
+      average_completion_rate: Math.round(avgCompletion),
+    });
+  } catch (error) {
+    console.error("Error fetching weekly task completion rate:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+
 // Get recent activities for RFI, change order, and drawing
 export const getRecentProjectActivities = async (req, res) => {
   try {

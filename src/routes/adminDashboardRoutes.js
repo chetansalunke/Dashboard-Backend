@@ -20,6 +20,8 @@ import {
   getOverdueDeliverablesByProject,
   getUpcomingDeliverablesByProject,
   getRecentProjectActivities,
+  getProjectWeeklyTaskCompletionRate,
+  getProjectAverageTaskDelay
 } from "../controllers/adminDashboardController.js";
 import { ROLE } from "../constants/role.js";
 import protect from "../middlewares/authMiddleware.js";
@@ -62,4 +64,9 @@ router.get(
   "/:projectId/recent-project-activities",
   getRecentProjectActivities
 );
+
+// routes/adminDashboardRoutes.js
+router.get('/:projectId/task-completion-rate', getProjectWeeklyTaskCompletionRate);
+router.get("/:projectId/average-task-delay", getProjectAverageTaskDelay);
+
 export default router;

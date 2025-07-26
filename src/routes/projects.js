@@ -135,12 +135,12 @@ const processDesignUpload = (req, res, next) => {
 };
 
 // Project management
-router.post("/add", protect(), processUpload, createProject);
-router.post("/drawingList/add", protect(), createDeliverableList);
-router.post("/assignTask", protect(), processUpload, assignTask);
+router.post("/add", protect(ROLE.ADMIN), processUpload, createProject);
+router.post("/drawingList/add", protect(ROLE.ADMIN), createDeliverableList);
+router.post("/assignTask", protect(ROLE.ADMIN), processUpload, assignTask);
 router.put("/assignTask/:taskId/status", updateTaskStatus);
 router.get("/assigned-tasks/:userId", getAssignedTaskByUser);
-router.post("/createTeam", protect(), createTeam);
+router.post("/createTeam", protect(ROLE.ADMIN), createTeam);
 router.get("/:projectId/documents", getProjectDocuments);
 router.get("/client/:clientId", getProjectsByClientId);
 router.get("/assigned-projects/:userId", getAssignedProjects);
