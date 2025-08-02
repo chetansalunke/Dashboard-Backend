@@ -358,6 +358,13 @@ export const createDeliverableList = async (req, res) => {
       });
     }
 
+        // Check that startDate is not after endDate (if both are provided)
+    if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
+      return res.status(400).json({
+        error: "Start date cannot be after end date",
+      });
+    }
+    
     const [result] = await pool.query(
       `INSERT INTO gigfactorydb.deliverable_list
         (drawing_number, drawing_name, start_date, end_date, assign_to, project_id, discipline)
