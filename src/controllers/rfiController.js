@@ -470,3 +470,45 @@ export const getChangeOrdersSentToClient = async (req, res) => {
       .json({ message: "Failed to fetch change orders for client" });
   }
 };
+
+
+// 6. Reject Change Order 
+export const rejectChangeOrder = async (req, res) => {
+  const { id } = req.params;
+  const { rejection_reason, rejected_by } = req.body;
+
+  try {
+    // Ensure change order exists
+    const [existingRows] = await pool.query(
+      `SELECT * FROM change_orders WHERE id = ?`,
+      [id]
+    );
+    if (existingRows.length === 0) {
+      return res.status(404).json({ message: "Change order not found" });
+    }
+
+    // Process uploaded rejection documents
+    const rejectionDocs =
+      req.files?.map((file) =>
+        path.relative(process.cwd(), file.path).replace(/\\/g, "/")
+      ) || [];
+    const rejectionDocsString = rejectionDocs.join(",");
+    const rejected_at = new Date();
+
+    // Update change order with rejection info
+    await pool.query(
+      `UPDATE change_orders
+       SET status = ?, rejection_reason = ?, rejected_by = ?, rejected_at = ?, rejection_documents = ?
+       WHERE id = ?`,
+      ["Rejected", rejection_reason, rejected_by, rejected_at, rejectionDocsString, id]
+    );
+
+    res.status(200).json({
+      message: "Change order rejected with documents successfully",
+      rejection_documents: rejectionDocs,
+    });
+  } catch (error) {
+    console.error("Failed to reject change order:", error);
+    res.status(500).json({ message: "Failed to reject change order" });
+  }
+};

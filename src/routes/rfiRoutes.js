@@ -18,6 +18,7 @@ import {
   getChangeOrdersSentToUser,
   getChangeOrdersByProjectId,
   getChangeOrdersSentToClient,
+  rejectChangeOrder
 } from "../controllers/rfiController.js";
 
 const storage = multer.diskStorage({
@@ -87,6 +88,8 @@ router.put(
   uploadCo.array("files", 10), // assuming 'files' is the field name in frontend
   resolveChangeOrder
 );
+router.post("/co/reject/:id",protect(ROLE.ADMIN, ROLE.CLIENT),uploadCo.array("files", 10), rejectChangeOrder);
+
 router.post(
   "/co/forward-to-client",
   protect(ROLE.ADMIN, ROLE.EXPERT),
@@ -104,5 +107,7 @@ router.get(
   protect(ROLE.CLIENT), // restrict to clients only
   getChangeOrdersSentToClient
 );
+
+
 
 export default router;
