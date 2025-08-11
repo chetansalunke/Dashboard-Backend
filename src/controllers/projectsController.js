@@ -389,6 +389,125 @@ export const createDeliverableList = async (req, res) => {
     res.status(500).json({ error: "Database error" });
   }
 };
+export const addChecklistWithCategory = async (req, res) => {
+  const connection = await pool.getConnection();
+  await connection.beginTransaction();
+
+  try {
+    const { categoryName, discipline, itemType, subcategoryName, items } = req.body;
+
+    if (!categoryName || !subcategoryName || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        error: "categoryName, subcategoryName, and at least one item are required."
+      });
+    }
+
+    let categoryId;
+    let subcategoryId;
+
+    // 1️⃣ Check if category exists (case-insensitive match)
+    const [existingCategory] = await connection.query(
+      `SELECT id FROM categories WHERE LOWER(name) = LOWER(?) AND 
+       (discipline = ? OR ? IS NULL) AND (item_type = ? OR ? IS NULL)`,
+      [categoryName, discipline || null, discipline || null, itemType || null, itemType || null]
+    );
+
+    if (existingCategory.length > 0) {
+      categoryId = existingCategory[0].id;
+    } else {
+      const [catResult] = await connection.query(
+        `INSERT INTO categories (name, discipline, item_type) VALUES (?, ?, ?)`,
+        [categoryName, discipline || null, itemType || null]
+      );
+      categoryId = catResult.insertId;
+    }
+
+    // 2️⃣ Check if subcategory exists under this category
+    const [existingSubcategory] = await connection.query(
+      `SELECT id FROM subcategories WHERE LOWER(name) = LOWER(?) AND category_id = ?`,
+      [subcategoryName, categoryId]
+    );
+
+    if (existingSubcategory.length > 0) {
+      subcategoryId = existingSubcategory[0].id;
+    } else {
+      const [subcatResult] = await connection.query(
+        `INSERT INTO subcategories (category_id, name) VALUES (?, ?)`,
+        [categoryId, subcategoryName]
+      );
+      subcategoryId = subcatResult.insertId;
+    }
+
+    // 3️⃣ Insert only new items (avoid duplicates in the same subcategory)
+    for (const text of items) {
+      const [existingItem] = await connection.query(
+        `SELECT id FROM items WHERE subcategory_id = ? AND LOWER(text) = LOWER(?)`,
+        [subcategoryId, text]
+      );
+      if (existingItem.length === 0) {
+        await connection.query(
+          `INSERT INTO items (subcategory_id, text) VALUES (?, ?)`,
+          [subcategoryId, text]
+        );
+      }
+    }
+
+    await connection.commit();
+
+    res.status(201).json({
+      message: "Checklist processed successfully",
+      categoryId,
+      subcategoryId
+    });
+
+  } catch (error) {
+    await connection.rollback();
+    console.error("Error adding checklist:", error);
+    res.status(500).json({ error: "Database error", details: error.message });
+  } finally {
+    connection.release();
+  }
+};
+
+
+
+export const getAllChecklist = async (req, res) => {
+  try {
+    // Fetch categories
+    const [categories] = await pool.query(`SELECT * FROM categories ORDER BY id`);
+
+    // Fetch subcategories
+    const [subcategories] = await pool.query(`SELECT * FROM subcategories ORDER BY id`);
+
+    // Fetch items
+    const [items] = await pool.query(`SELECT * FROM items ORDER BY id`);
+
+    // Map subcategories → attach items
+    const subcategoriesWithItems = subcategories.map((subcat) => ({
+      ...subcat,
+      items: items.filter((item) => item.subcategory_id === subcat.id),
+    }));
+
+    // Map categories → attach subcategories
+    const categoriesWithSubs = categories.map((cat) => ({
+      ...cat,
+      subcategories: subcategoriesWithItems.filter(
+        (sub) => sub.category_id === cat.id
+      ),
+    }));
+
+    res.status(200).json({
+      categories: categoriesWithSubs,
+      totalCategories: categories.length,
+      totalSubcategories: subcategories.length,
+      totalItems: items.length,
+    });
+  } catch (error) {
+    console.error("Error fetching checklist:", error);
+    res.status(500).json({ error: "Failed to fetch checklist data" });
+  }
+};
+
 
 // assign task controller
 export const assignTask = async (req, res) => {
