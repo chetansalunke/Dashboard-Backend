@@ -40,7 +40,9 @@ import {
   updateProject,
   getDeliverableByProjectId,
   getAllDeliverable,
-  updateDeliverableStatusIfAllTasksCompleted
+  updateDeliverableStatusIfAllTasksCompleted,
+  addChecklistWithCategory,
+  getAllChecklist
 } from "../controllers/projectsController.js";
 import protect from "../middlewares/authMiddleware.js";
 
@@ -137,6 +139,8 @@ const processDesignUpload = (req, res, next) => {
 // Project management
 router.post("/add", protect(ROLE.ADMIN), processUpload, createProject);
 router.post("/drawingList/add", protect(ROLE.ADMIN), createDeliverableList);
+router.post("/checklist", protect(ROLE.ADMIN), addChecklistWithCategory);
+router.get("/checklist/all",protect(ROLE.ADMIN), getAllChecklist);
 router.post("/assignTask", protect(ROLE.ADMIN), processUpload, assignTask);
 router.put("/assignTask/:taskId/status", updateTaskStatus);
 router.get("/assigned-tasks/:userId", getAssignedTaskByUser);
@@ -282,5 +286,9 @@ router.get(
 
 // router.patch('/:projectId/update-deliverable-statuses',protect(ROLE.ADMIN, ROLE.DESIGNER, ROLE.EXPERT), updateDeliverableStatusIfAllTasksCompleted);
 
-router.patch('/deliverable/:deliverableId/update-status',protect(ROLE.ADMIN, ROLE.DESIGNER, ROLE.EXPERT), updateDeliverableStatusIfAllTasksCompleted);
+router.patch(
+  "/deliverable/:deliverableId/update-status",
+  protect(ROLE.ADMIN, ROLE.DESIGNER, ROLE.EXPERT),
+  updateDeliverableStatusIfAllTasksCompleted
+);
 export default router;
