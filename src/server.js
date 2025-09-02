@@ -119,6 +119,8 @@ app.use("/api/projects", projects);
 app.use("/api", rfiRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/admin", adminDashboardRoutes);
+import notificationRoutes from "./routes/notificationRoutes.js";
+app.use("/api/notifications", notificationRoutes);
 
 // Test route
 app.get("/api/test", (req, res) => res.json({ message: "CORS works!" }));

@@ -66,6 +66,7 @@ export const updateDeliverableStatusIfAllTasksCompleted = async (req, res) => {
 // src/controllers/projectsController.js
 import pool from "../config/db.js";
 import path from "path";
+import { createNotification } from "../models/notificationModel.js";
 
 // Updated deliverable status function with better debugging and error handling
 export const updateDeliverableStatuses = async (req, res) => {
@@ -358,13 +359,13 @@ export const createDeliverableList = async (req, res) => {
       });
     }
 
-        // Check that startDate is not after endDate (if both are provided)
+    // Check that startDate is not after endDate (if both are provided)
     if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
       return res.status(400).json({
         error: "Start date cannot be after end date",
       });
     }
-    
+
     const [result] = await pool.query(
       `INSERT INTO gigfactorydb.deliverable_list
         (drawing_number, drawing_name, start_date, end_date, assign_to, project_id, discipline)
@@ -394,11 +395,18 @@ export const addChecklistWithCategory = async (req, res) => {
   await connection.beginTransaction();
 
   try {
-    const { categoryName, discipline, itemType, subcategoryName, items } = req.body;
+    const { categoryName, discipline, itemType, subcategoryName, items } =
+      req.body;
 
-    if (!categoryName || !subcategoryName || !Array.isArray(items) || items.length === 0) {
+    if (
+      !categoryName ||
+      !subcategoryName ||
+      !Array.isArray(items) ||
+      items.length === 0
+    ) {
       return res.status(400).json({
-        error: "categoryName, subcategoryName, and at least one item are required."
+        error:
+          "categoryName, subcategoryName, and at least one item are required.",
       });
     }
 
@@ -409,7 +417,13 @@ export const addChecklistWithCategory = async (req, res) => {
     const [existingCategory] = await connection.query(
       `SELECT id FROM categories WHERE LOWER(name) = LOWER(?) AND 
        (discipline = ? OR ? IS NULL) AND (item_type = ? OR ? IS NULL)`,
-      [categoryName, discipline || null, discipline || null, itemType || null, itemType || null]
+      [
+        categoryName,
+        discipline || null,
+        discipline || null,
+        itemType || null,
+        itemType || null,
+      ]
     );
 
     if (existingCategory.length > 0) {
@@ -457,9 +471,8 @@ export const addChecklistWithCategory = async (req, res) => {
     res.status(201).json({
       message: "Checklist processed successfully",
       categoryId,
-      subcategoryId
+      subcategoryId,
     });
-
   } catch (error) {
     await connection.rollback();
     console.error("Error adding checklist:", error);
@@ -469,15 +482,17 @@ export const addChecklistWithCategory = async (req, res) => {
   }
 };
 
-
-
 export const getAllChecklist = async (req, res) => {
   try {
     // Fetch categories
-    const [categories] = await pool.query(`SELECT * FROM categories ORDER BY id`);
+    const [categories] = await pool.query(
+      `SELECT * FROM categories ORDER BY id`
+    );
 
     // Fetch subcategories
-    const [subcategories] = await pool.query(`SELECT * FROM subcategories ORDER BY id`);
+    const [subcategories] = await pool.query(
+      `SELECT * FROM subcategories ORDER BY id`
+    );
 
     // Fetch items
     const [items] = await pool.query(`SELECT * FROM items ORDER BY id`);
@@ -507,7 +522,6 @@ export const getAllChecklist = async (req, res) => {
     res.status(500).json({ error: "Failed to fetch checklist data" });
   }
 };
-
 
 // assign task controller
 export const assignTask = async (req, res) => {
@@ -595,6 +609,15 @@ export const assignTask = async (req, res) => {
       }
     }
 
+    // Send notification to assigned user (in-app)
+    if (assignTo) {
+      await createNotification({
+        user_id: assignTo,
+        type: "Task Assigned",
+        message: `You have been assigned a new task: ${taskName}`,
+        related_id: result.insertId,
+      });
+    }
     res.status(201).json({
       message: "Task assigned successfully",
       taskId: result.insertId,
@@ -1105,6 +1128,16 @@ export const createDesignDrawing = async (req, res) => {
       );
     }
 
+    // 5. Create notification for the expert
+    if (sent_to) {
+      await createNotification({
+        user_id: sent_to,
+        type: "Drawing Assigned",
+        message: `A new drawing has been assigned to you for review: ${name}`,
+        related_id: drawingId,
+      });
+    }
+
     return res.status(201).json({
       drawing_id: drawingId,
       latest_version_id: latestVersionId,
@@ -1182,6 +1215,25 @@ export const uploadDrawingVersion = async (req, res) => {
       );
     }
 
+    // ✅ Fetch designer/client to notify
+    const [expertInfo] = await pool.query(
+      `SELECT sent_to, name FROM design_drawing_list WHERE id = ?`,
+      [drawing_id]
+    );
+    const assigned_expert_id = expertInfo[0]?.sent_to;
+    const assigned_expert_name = expertInfo[0]?.name;
+
+    // ✅ Notify assigned expert (or project manager if no expert assigned)
+    if (assigned_expert_id) {
+      console.log("Notifying assigned expert:",assigned_expert_id);
+      await createNotification({
+        user_id: assigned_expert_id,
+        type: "New Revision Uploaded",
+        message: `A new revision of "${assigned_expert_name}" has been uploaded and sent for your review.`,
+        related_id: drawing_id,
+      });
+    }
+
     return res.status(200).json({
       message: "New version uploaded. Sent to expert for review.",
       version_id: newVersionId,
@@ -1256,6 +1308,25 @@ export const expertReview = async (req, res) => {
       );
     }
 
+
+    // ✅ Fetch designer/client to notify
+    const [drawingInfo] = await pool.query(
+      `SELECT created_by, name FROM design_drawing_list WHERE id = ?`,
+      [drawing_id]
+    );
+    const designer_id = drawingInfo[0]?.created_by;
+    const drawingName = drawingInfo[0]?.name;
+
+    // ✅ Send notification to designer
+    if (designer_id) {
+      await createNotification({
+        user_id: designer_id,
+        type: "Drawing Review Update",
+        message: `Your drawing "${drawingName}" has been reviewed: ${status}`,
+        related_id: drawing_id,
+      });
+    }
+
     return res.status(200).json({
       message: `Drawing marked as '${status}' by expert.`,
     });
@@ -1278,7 +1349,7 @@ export const submitToClient = async (req, res) => {
 
     // Optional: Only allow submission if approved by expert
     const [[drawing]] = await pool.query(
-      `SELECT status FROM design_drawing_list WHERE id = ?`,
+      `SELECT status,name FROM design_drawing_list WHERE id = ?`,
       [drawing_id]
     );
 
@@ -1324,6 +1395,14 @@ export const submitToClient = async (req, res) => {
         [latest_version_id, submitted_by, comment]
       );
     }
+
+     // ✅ Notify the client
+    await createNotification({
+      user_id: submitted_to,
+      type: "Drawing Submitted",
+      message: `A drawing "${drawing.name}" has been submitted to you for review.`,
+      related_id: drawing_id,
+    });
 
     return res.status(201).json({
       message: "Drawing submitted to client.",
@@ -1388,7 +1467,7 @@ export const clientReview = async (req, res) => {
 
     // 2. Get latest version
     const [[drawing]] = await pool.query(
-      `SELECT latest_version_id FROM design_drawing_list WHERE id = ?`,
+      `SELECT latest_version_id,name, created_by, sent_to FROM design_drawing_list WHERE id = ?`,
       [drawing_id]
     );
 
@@ -1447,6 +1526,28 @@ export const clientReview = async (req, res) => {
         ) VALUES (?, ?, 'Client', ?)`,
         [version_id, client_id, comment]
       );
+    }
+
+
+      // 6. ✅ Notifications
+    // Notify designer
+    if (drawing?.created_by) {
+      await createNotification({
+        user_id: drawing.created_by,
+        type: "Client Review",
+        message: `Your drawing "${drawing.name}" has been reviewed by the client: ${status}`,
+        related_id: drawing_id,
+      });
+    }
+
+    // Notify expert (optional, only if assigned)
+    if (drawing?.sent_to) {
+      await createNotification({
+        user_id: drawing.sent_to,
+        type: "Client Review",
+        message: `The client has reviewed the drawing "${drawing.name}": ${status}`,
+        related_id: drawing_id,
+      });
     }
 
     return res.status(200).json({

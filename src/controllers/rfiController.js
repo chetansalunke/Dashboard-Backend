@@ -1,5 +1,6 @@
 import pool from "../config/db.js";
 import path from "path";
+import { createNotification } from "../models/notificationModel.js";
 export const createRfi = async (req, res) => {
   try {
     const {
@@ -55,6 +56,15 @@ export const createRfi = async (req, res) => {
       ]
     );
 
+    // Send notification to recipient (send_to)
+    if (send_to) {
+      await createNotification({
+        user_id: send_to,
+        type: "RFI Assigned",
+        message: `You have been assigned a new RFI: ${title}`,
+        related_id: result.insertId,
+      });
+    }
     res.status(201).json({
       message: "RFI Created Successfully",
       rfi_id: result.insertId,
@@ -99,6 +109,8 @@ export const resolveRfi = async (req, res) => {
       return res.status(404).json({ message: "RFI not found" });
     }
 
+    const rfiData = existing[0];
+
     await pool.query(
       `UPDATE rfi 
        SET resolution_details = ?, 
@@ -116,6 +128,29 @@ export const resolveRfi = async (req, res) => {
         rfi_id,
       ]
     );
+    // ✅ Notify RFI creator
+    if (rfiData.created_by) {
+      await createNotification({
+        user_id: rfiData.created_by,
+        type: "RFI Resolved",
+        message: `Your RFI "${
+          rfiData.title || "Untitled"
+        }" has been marked as ${status || "Resolved"}.`,
+        related_id: rfi_id,
+      });
+    }
+
+    // ✅ Optional: Notify project manager if field exists
+    if (rfiData.project_manager_id) {
+      await createNotification({
+        user_id: rfiData.project_manager_id,
+        type: "RFI Resolved",
+        message: `RFI "${
+          rfiData.title || "Untitled"
+        }" has been resolved by user ${resolved_by}.`,
+        related_id: rfi_id,
+      });
+    }
 
     res.status(200).json({
       message: "RFI resolved successfully",
@@ -164,6 +199,16 @@ export const forwardToClient = async (req, res) => {
       "UPDATE rfi SET sent_to_client = ?, status = 'Sent to Client' WHERE id = ?",
       [clientId, rfiId]
     );
+
+    // Send notification to client
+    if (clientId) {
+      await createNotification({
+        user_id: clientId,
+        type: "RFI Assigned",
+        message: `You have been assigned a new RFI: ${rfiId}`,
+        related_id: rfiId,
+      });
+    }
 
     res.status(200).json({
       message: `RFI ${rfiId} forwarded to client ${clientId} with status 'Sent to Client'`,
@@ -220,6 +265,30 @@ export const clientResolveRfi = async (req, res) => {
         rfi_id,
       ]
     );
+
+    // ✅ Notify the designer (RFI creator)
+    if (rfi.created_by) {
+      await createNotification({
+        user_id: rfi.created_by,
+        type: "RFI Resolved by Client",
+        message: `Your RFI "${
+          rfi.title || "Untitled"
+        }" has been resolved by the client.`,
+        related_id: rfi_id,
+      });
+    }
+
+    // ✅ Optionally notify project manager if tracked
+    if (rfi.send_to) {
+      await createNotification({
+        user_id: rfi.send_to,
+        type: "RFI Resolved by Client",
+        message: `The client has resolved the RFI "${
+          rfi.title || "Untitled"
+        }".`,
+        related_id: rfi_id,
+      });
+    }
 
     res.status(200).json({
       message: "RFI resolved successfully",
@@ -310,6 +379,16 @@ export const createChangeOrder = async (req, res) => {
       ]
     );
 
+    // Send notification to recipient (send_to)
+    if (send_to) {
+      await createNotification({
+        user_id: send_to,
+        type: "Change Order Assigned",
+        message: `You have been assigned a new Change Order: ${description_of_change}`,
+        related_id: change_request_number,
+      });
+    }
+
     res.status(201).json({
       message: "Change Order Created",
       id: result.insertId,
@@ -390,6 +469,27 @@ export const resolveChangeOrder = async (req, res) => {
       ]
     );
 
+    // ✅ Notifications
+    // Notify project manager if exists
+    // if (changeOrder.send_to) {
+    //   await createNotification({
+    //     user_id: changeOrder.send_to,
+    //     type: "Change Order Resolved",
+    //     message: `Change Order "${changeOrder.change_request_number}" has been resolved.`,
+    //     related_id: id,
+    //   });
+    // }
+
+    // Notify creator of change order
+    if (changeOrder.requester) {
+      await createNotification({
+        user_id: changeOrder.requester,
+        type: "Change Order Resolved",
+        message: `Your Change Order "${changeOrder.change_request_number}" has been resolved.`,
+        related_id: id,
+      });
+    }
+
     res.status(200).json({
       message: "Change order resolved and deliverable created successfully",
       resolution_documents: resolutionDocs,
@@ -414,6 +514,16 @@ export const forwardChangeOrderToClient = async (req, res) => {
       `UPDATE change_orders SET sent_to_client=?, status='Sent to Client' WHERE id=?`,
       [clientId, orderId]
     );
+
+    // Send notification to client
+    if (clientId) {
+      await createNotification({
+        user_id: clientId,
+        type: "Change Order Assigned",
+        message: `You have been assigned a new Change Order: ${orderId}`,
+        related_id: orderId,
+      });
+    }
 
     res
       .status(200)
@@ -471,8 +581,7 @@ export const getChangeOrdersSentToClient = async (req, res) => {
   }
 };
 
-
-// 6. Reject Change Order 
+// 6. Reject Change Order
 export const rejectChangeOrder = async (req, res) => {
   const { id } = req.params;
   const { rejection_reason, rejected_by } = req.body;
@@ -487,6 +596,8 @@ export const rejectChangeOrder = async (req, res) => {
       return res.status(404).json({ message: "Change order not found" });
     }
 
+    const changeOrder = existingRows[0];
+
     // Process uploaded rejection documents
     const rejectionDocs =
       req.files?.map((file) =>
@@ -500,8 +611,38 @@ export const rejectChangeOrder = async (req, res) => {
       `UPDATE change_orders
        SET status = ?, rejection_reason = ?, rejected_by = ?, rejected_at = ?, rejection_documents = ?
        WHERE id = ?`,
-      ["Rejected", rejection_reason, rejected_by, rejected_at, rejectionDocsString, id]
+      [
+        "Rejected",
+        rejection_reason,
+        rejected_by,
+        rejected_at,
+        rejectionDocsString,
+        id,
+      ]
     );
+
+    // ✅ Notifications
+    // Notify project manager if exists
+    // if (changeOrder.send_to) {
+    //   await createNotification({
+    //     user_id: changeOrder.send_to,
+    //     type: "Change Order Rejected",
+    //     message: `Change Order "${changeOrder.change_request_number}" has been rejected.`,
+    //     related_id: id,
+    //   });
+    // }
+
+    // Notify creator of the change order
+    if (changeOrder.requester) {
+      await createNotification({
+        user_id: changeOrder.requester,
+        type: "Change Order Rejected",
+        message: `Your Change Order "${
+          changeOrder.change_request_number
+        }" was rejected. Reason: ${rejection_reason || "Not specified"}`,
+        related_id: id,
+      });
+    }
 
     res.status(200).json({
       message: "Change order rejected with documents successfully",
