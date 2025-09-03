@@ -454,6 +454,43 @@ export const addChecklist = async (req, res) => {
   }
 };
 
+
+export const addItemsToCategory = async (req, res) => {
+  const { categoryId, items } = req.body;
+
+  if (!categoryId || !Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({
+      error: "categoryId and at least one item are required."
+    });
+  }
+
+  try {
+    let added = 0;
+    for (const text of items) {
+      const [existingItem] = await pool.query(
+        `SELECT id FROM items WHERE category_id = ? AND LOWER(text) = LOWER(?)`,
+        [categoryId, text]
+      );
+      if (existingItem.length === 0) {
+        await pool.query(
+          `INSERT INTO items (category_id, text) VALUES (?, ?)`,
+          [categoryId, text]
+        );
+        added++;
+      }
+    }
+
+    res.status(201).json({
+      message: `${added} new item(s) added to category.`,
+      categoryId
+    });
+  } catch (error) {
+    console.error("Error adding items to category:", error);
+    res.status(500).json({ error: "Database error", details: error.message });
+  }
+};
+
+
 export const getAllChecklists = async (req, res) => {
   try {
     const { project_id } = req.query; // optional filter

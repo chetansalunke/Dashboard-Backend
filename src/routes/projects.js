@@ -43,6 +43,7 @@ import {
   updateDeliverableStatusIfAllTasksCompleted,
   addChecklist,
   getAllChecklists,
+  addItemsToCategory,
 } from "../controllers/projectsController.js";
 import protect from "../middlewares/authMiddleware.js";
 
@@ -140,6 +141,7 @@ const processDesignUpload = (req, res, next) => {
 router.post("/add", protect(ROLE.ADMIN), processUpload, createProject);
 router.post("/drawingList/add", protect(ROLE.ADMIN), createDeliverableList);
 router.post("/checklist", protect(ROLE.ADMIN), addChecklist);
+router.post("/checklist/add-items-to-category", protect(ROLE.ADMIN), addItemsToCategory);
 router.get("/checklist/all", protect(ROLE.ADMIN), getAllChecklists);
 router.post("/assignTask", protect(ROLE.ADMIN), processUpload, assignTask);
 router.put("/assignTask/:taskId/status", updateTaskStatus);
